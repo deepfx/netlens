@@ -108,7 +108,7 @@ class LayeredModule(nn.Module):
 class StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
-
+            
     def __init__(self, base: LayeredModule,
                  content_target=None,
                  content_layer_keys=None,
