@@ -5,8 +5,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-import pydash as py
-
 from .utils import gram_matrix, clean_layer
 
 
@@ -107,7 +105,7 @@ class LayeredModule(nn.Module):
         self.layers.insert(idx, layer)
 
 
-class NeuralTransferModule(LayeredModule):
+class StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
 
@@ -116,7 +114,7 @@ class NeuralTransferModule(LayeredModule):
                  content_layer_keys=None,
                  style_target=None,
                  style_layer_keys=None):
-        super(NeuralTransferModule, self).__init__(base.layers, base.preprocessor, base.postprocessor)
+        super(StyleTransferModule, self).__init__(base.layers, base.preprocessor, base.postprocessor)
         self.content_target = content_target
         self.style_target = style_target
         if content_target and content_layer_keys:
@@ -134,4 +132,30 @@ class NeuralTransferModule(LayeredModule):
             # insert it after layer at key
             self.insert_after(key, loss_layer)
 
-    
+    def run_style_transfer(self, input_img, optimizer_class, num_steps=300, style_weight=1000000, content_weight=1, verbose=False):
+        optimizer = optimizer_class([input_img.requires_grad_()])
+
+        def closure(n):
+            # correct the values of updated input image
+            input_img.data.clamp_(0, 1)
+
+            optimizer.zero_grad()
+            self.forward(input_img)
+            style_score = style_weight * sum(sl.loss for sl in self.get_modules(StyleLoss))
+            content_score = content_weight * sum(cl.loss for cl in self.get_modules(ContentLoss))
+            loss = style_score + content_score
+            loss.backward()
+
+            if verbose and n % 50 == 0:
+                print("run {}:".format(n))
+                print('Style Loss : {:4f} Content Loss: {:4f}\n'.format(style_score.item(), content_score.item()))
+
+            return style_score + content_score
+
+        for step in range(num_steps):
+            optimizer.step(lambda: closure(step))
+
+        # a last correction...
+        input_img.data.clamp_(0, 1)
+
+        return input_img
