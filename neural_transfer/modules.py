@@ -5,7 +5,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .utils import gram_matrix
+import pydash as py
+
+from .utils import gram_matrix, clean_layer
 
 
 class Normalization(nn.Module):
@@ -49,26 +51,22 @@ class StyleLoss(nn.Module):
         return input
 
 
-def clean_layer(layer):
-    return nn.ReLU(inplace=False) if isinstance(layer, nn.ReLU) else layer
-
-
-class BlocksModule(nn.Module):
+class LayeredModule(nn.Module):
     preprocessor: Optional[nn.Module]
     layers: nn.ModuleList
     postprocessor: Optional[nn.Module]
 
-    def __init__(self, blocks, preprocessor=None, postprocessor=None):
-        super(BlocksModule, self).__init__()
+    def __init__(self, layers, preprocessor=None, postprocessor=None):
+        super(LayeredModule, self).__init__()
         self.preprocessor = preprocessor
-        self.layers = blocks
+        self.layers = layers
         self.postprocessor = postprocessor
 
     @staticmethod
-    def from_vgg(vgg, normalizer):
-        vgg = copy.deepcopy(vgg)
-        layers = nn.ModuleList([clean_layer(layer) for layer in vgg.children()])
-        return BlocksModule(layers, preprocessor=normalizer)
+    def from_cnn(cnn, normalizer):
+        cnn = copy.deepcopy(cnn)
+        layers = nn.ModuleList([clean_layer(layer) for layer in cnn.children()])
+        return LayeredModule(layers, preprocessor=normalizer)
 
     # TODO: implement similar static methods for other archs
 
@@ -80,6 +78,9 @@ class BlocksModule(nn.Module):
 
     def find_indices(self, module: type) -> List[int]:
         return [i for i, l in enumerate(self.layers) if isinstance(l, module)]
+
+    def get_modules(self, module: type) -> List[nn.Module]:
+        return [layer for layer in self.layers if isinstance(layer, module)]
 
     def evaluate_at_layer(self, x: torch.Tensor, key: Tuple[type, int]):
         module, nth = key
@@ -106,27 +107,31 @@ class BlocksModule(nn.Module):
         self.layers.insert(idx, layer)
 
 
-class NeuralTransferModule(BlocksModule):
-    content_loss_layers: Optional[List[ContentLoss]]
-    style_loss_layers: Optional[List[StyleLoss]]
+class NeuralTransferModule(LayeredModule):
+    content_target: torch.Tensor
+    style_target: torch.Tensor
 
-    def __init__(self, base: BlocksModule, content_target=None, content_keys=None, style_target=None, style_keys=None):
+    def __init__(self, base: LayeredModule,
+                 content_target=None,
+                 content_layer_keys=None,
+                 style_target=None,
+                 style_layer_keys=None):
         super(NeuralTransferModule, self).__init__(base.layers, base.preprocessor, base.postprocessor)
-        if content_target and content_keys:
-            self.content_loss_layers = self._insert_loss_layers(ContentLoss, content_target, content_keys)
-        if style_target and style_keys:
-            self.style_loss_layers = self._insert_loss_layers(StyleLoss, style_target, style_keys)
+        self.content_target = content_target
+        self.style_target = style_target
+        if content_target and content_layer_keys:
+            self._insert_loss_layers(ContentLoss, content_target, content_layer_keys)
+        if style_target and style_layer_keys:
+            self._insert_loss_layers(StyleLoss, style_target, style_layer_keys)
 
-    def _insert_loss_layers(self, layer_creator, target, insertion_keys):
+    def _insert_loss_layers(self, layer_constructor, target, insertion_keys):
         target_at_layers = self.evaluate_at_layers(target, insertion_keys)
-        loss_layers = []
         for key in insertion_keys:
             # create loss layer
-            loss_layer = layer_creator(target_at_layers[key].detach())
+            loss_layer = layer_constructor(target_at_layers[key].detach())
             # you could also just do (but it's kinda inefficient :))
-            # loss_layer = layer_creator(self.evaluate_at_layer(target, key).detach())
+            # loss_layer = layer_constructor(self.evaluate_at_layer(target, key).detach())
             # insert it after layer at key
             self.insert_after(key, loss_layer)
-            # remember it for later usage
-            loss_layers.append(loss_layer)
-        return loss_layers
+
+    
