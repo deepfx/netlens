@@ -11,8 +11,6 @@ Playing with CNN architectures, gradient ascent for feature visualization, style
 ## Todos
 ### Visualization Utils
 
-
-
 Overall we need a few composable modules that we can extend with new 
 visualizations and operations that work on semantic units of the Neural Net. 
 
@@ -30,8 +28,11 @@ https://distill.pub/2018/building-blocks/
     Code help: https://github.com/utkuozbulak/pytorch-cnn-visualizations#grad-times-image
  4. Semantic Dictionaries,   Matrix factorization (channels, spatial) -> Groups
  
+## Extra considerations
+* Be Able to use other Loss metrics per StyleLayer, ContentLayer
+* Different similarity metrics -> Gram (autocorrelation), cross-correlation, etc.
  
 ##Technical
-
 * Generic Retriever (config -> model specific traversal API)
 * Mapping: names <---> NN.classes
+* Read up: https://pytorch.org/docs/stable/nn.html#torch.nn.Conv2d
