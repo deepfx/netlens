@@ -11,6 +11,7 @@ from .utils import gram_matrix, clean_layer, is_instance_of_any
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 
+#externally exposed – to smoothen out pytorch changes
 MODULE_NAME_MAP = {
     nn.Conv2d: 'conv',
     nn.ReLU: 'relu',
@@ -29,7 +30,7 @@ def get_module_name(module: nn.Module) -> str:
 
 
 class Normalization(nn.Module):
-    name: str = 'pre_normalization'
+    name: str = 'normalization'
 
     def __init__(self, mean, std):
         super(Normalization, self).__init__()
@@ -73,12 +74,91 @@ class StyleLoss(nn.Module):
         return input
 
 
+#implement gradient getter logic
+
+
+"""
+hook_layer(layer_key) -> {
+    self.hooks[layer_key] = h
+    hook
+    
+    def hook_closure(
+}
+"""
+
+"""
+*Register forward for all layers
+*save hooks to dict
+*save outputs to dict 
+"""
+
+class Show: #interpret
+    @staticmethod
+    def gradient(gradients):
+        #convert to greyscale
+        #plt.plot()
+        pass
+    @staticmethod
+    def top_loss():
+        pass
+    @staticmethod
+    def GradCAM(gradients):
+        pass
+
 class LayeredModule(nn.Module):
     layers: nn.ModuleList
 
     def __init__(self, layers):
         super(LayeredModule, self).__init__()
         self.layers = layers
+        self.hooks_forward = {}
+        self.hooks_backward = {}
+
+        self.layer_outputs = {}
+        self.layer_gradients = {}
+
+    def set_layer_context(self, layer_key):
+        def forward_hook_callback(self, _input_, output):
+            self.layer_outputs[layer_key] = output
+        return forward_hook_callback
+
+    def hook_layers(self, layer_keys):
+        return None
+
+    #TODO: hook_all -> hook_specified
+    def hook_all_forward(self):
+        for layer_key, layer in self.layers._modules.items():
+            self.hooks_forward[layer_key] = layer.register_forward_hook(self.set_layer_context(layer_key))
+
+    #TODO: all -> specified
+    def hook_all_backward(self):
+        def set_param_context(name):
+            def hook_fn(grad):
+                self.layer_gradients[name] = grad
+                return grad
+            return hook_fn
+
+        for name, param in self.layers.named_parameters():
+            param.register_hook(set_param_context(name))
+
+    def get_gradients(self, input, target_class):
+        self.gradients = None
+        # Put model in evaluation mode
+        self.eval()
+        model_output = self.forward(input)
+
+        self.zero_grad()
+        num_classes = model_output.size()[-1]
+        one_hot_output = torch.FloatTensor(1 ,num_classes).zero_()
+        one_hot_output[0][target_class] = 1
+        # Backward pass
+
+        #wrt
+        model_output.backward(gradient=one_hot_output)
+        # Convert Pytorch variable to numpy array
+        # [0] to get rid of the first channel (1,3,224,224)
+
+        return self.layer_gradients #to numpy?? #numpy()[0]
 
     @staticmethod
     def from_cnn(cnn, normalizer):
@@ -103,12 +183,15 @@ class LayeredModule(nn.Module):
     def get_module(self, name: str, nth: int) -> nn.Module:
         return self.get_modules(name)[nth]
 
+    # TODO: remove and integrate with forward hooks
+    # def get_output(layer):
     def evaluate_at_layer(self, x: torch.Tensor, key: Tuple[str, int]):
         name, nth = key
         until_idx = self.find_indices(name)[nth]
         for layer in self.layers[:until_idx + 1]:
             x = layer(x)
         return x
+
 
     def evaluate_at_layers(self, x: torch.Tensor, keys: Iterable[Tuple[str, int]], compute_all: bool = False):
         """
