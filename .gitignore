@@ -106,11 +106,5 @@ venv.bak/
 
 # Mac
 .DS_Store
-electrical/Image_URL_Downloader/.idea/Image_URL_Downloader.iml
-electrical/Image_URL_Downloader/.idea/misc.xml
-electrical/Image_URL_Downloader/.idea/modules.xml
-electrical/Image_URL_Downloader/.idea/vcs.xml
-electrical/Image_URL_Downloader/.idea/workspace.xml
-*.jpg
-*.gif
-*.jpeg
+
+**/.idea/
