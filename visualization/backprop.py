@@ -6,6 +6,9 @@ import torch
 from .modules import LayeredModule
 
 
+##Refactor to named_params backprop
+##
+
 class VanillaBackprop:
     """
     Produces gradients generated with vanilla back propagation from the image.
