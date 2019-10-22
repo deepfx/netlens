@@ -11,6 +11,10 @@ from .utils import gram_matrix, clean_layer, is_instance_of_any
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 
+
+
+
+
 #externally exposed – to smoothen out pytorch changes
 MODULE_NAME_MAP = {
     nn.Conv2d: 'conv',
@@ -104,6 +108,8 @@ class Show: #interpret
     @staticmethod
     def GradCAM(gradients):
         pass
+
+
 
 class LayeredModule(nn.Module):
     layers: nn.ModuleList
@@ -219,7 +225,11 @@ class LayeredModule(nn.Module):
         self.layers.insert(idx + 1, layer)
 
 
-class   StyleTransferModule(LayeredModule):
+
+
+#inject
+#(Style, (Content, 4))
+class StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
 
