@@ -62,7 +62,7 @@ class StyleTransferModule(LayeredModule):
         self.forward(target)
         for key in insertion_keys:
             # create loss layer
-            loss_layer = layer_class(self.get_layer_output(key).detach())
+            loss_layer = layer_class(self.get_layer_output(key))
             # insert it after layer at key
             # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
             _, nth = key_to_tuple(key)
