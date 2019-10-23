@@ -3,8 +3,9 @@ import torch.nn.functional as F
 from pydash import find_last
 from torch import nn, optim
 
+from .math import gram_matrix
 from .modules import LayeredModule
-from .utils import gram_matrix, key_to_tuple, tuple_to_key
+from .utils import key_to_tuple, tuple_to_key
 
 
 class ContentLoss(nn.Module):
