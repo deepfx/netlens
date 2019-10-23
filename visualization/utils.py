@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 from torch import nn
 
@@ -24,5 +26,14 @@ def find_indices(iterable, predicate):
     return [i for i, x in enumerate(iterable) if predicate(x)]
 
 
-def is_instance_of_any(types):
-    return lambda x: any(isinstance(x, t) for t in types)
+# FUNCTIONS TO ENCODE/DECODE LAYER KEYS (str) TO TUPLES
+# Example: tuple=('conv', 1) <--> key='conv-1'
+
+def tuple_to_key(name: str, nth: int) -> str:
+    assert '-' not in name, "The name cannot contain a '-' character."
+    return f'{name}-{nth}'
+
+
+def key_to_tuple(key: str) -> Tuple[str, int]:
+    parts = key.rsplit('-', 1)
+    return parts[0], int(parts[1])

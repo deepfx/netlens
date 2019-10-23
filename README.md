@@ -9,6 +9,26 @@ Playing with CNN architectures, gradient ascent for feature visualization, style
 
 
 ## Todos
+
+
+'''
+1. Cesar:: 
+    Refactor
+       [ layer_keys: str -> Tuple ]
+        [Remove 40% of code !!! ]
+    is util in fastai ??
+            Yes -> use or steal (Interpret, Hook, top_losses)
+            No -> make
+2. Ben ::
+        [  ] 
+        
+        Visuliaze (Data -> 
+            GradCAM (Fastai or Notebook) use Code
+            + Image
+3. Markus ::
+        Image Optimization
+'''
+
 ### Visualization Utils
 
 Overall we need a few composable modules that we can extend with new 
