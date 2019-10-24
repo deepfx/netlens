@@ -19,14 +19,14 @@ if __name__ == '__main__':
     gradients = model.get_gradients_for_sample(prep_img, target_class)
 
     # TEST: here we confirm that the values captured by the nn.Module backward hook can be obtained by different means
-    grad_in, grad_out = model.layer_gradients['features-conv-0']
+    '''grad_in, grad_out = model.layer_gradients['features-conv-0']
     check_equality(grad_out[0], model.activation_gradients['features-conv-0'])
     check_equality(grad_in[0], model.activation_gradients['input'])
     check_equality(grad_in[1], model.param_gradients['features-conv-0.weight'])
-    check_equality(grad_in[2], model.param_gradients['features-conv-0.bias'])
+    check_equality(grad_in[2], model.param_gradients['features-conv-0.bias'])'''
 
     # we need to get the first layer, squeeze it an make it numpy
-    vanilla_grads = gradients['features-conv-0'][0][0].data.numpy()[0]
+    vanilla_grads = gradients['input'].squeeze(0).numpy()
     # Save colored gradients
     save_gradient_images(vanilla_grads, file_name_to_export + '_Vanilla_BP_color')
     # Convert to grayscale

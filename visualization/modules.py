@@ -78,7 +78,6 @@ def _clear_hooks(hooks: dict) -> None:
     [h.remove() for h in hooks.values()]
     hooks.clear()
 
-
 class LayeredModule(nn.Module):
     """
     **HOOKS**
@@ -118,12 +117,10 @@ class LayeredModule(nn.Module):
         self.layers = nn.ModuleDict(layers)
 
         self.hooks_layer_forward = {}
-        self.hooks_layer_backward = {}
         self.hooks_activations = {}
         self.hooks_params = {}
 
         self.layer_outputs = {}
-        self.layer_gradients = {}
         self.activation_gradients = {}
         self.param_gradients = {}
 
@@ -154,11 +151,11 @@ class LayeredModule(nn.Module):
         def forward_hook_callback(_layer_, _input_, output):
             self.layer_outputs[layer_key] = output
 
-        def backward_hook_callback(_layer_, grad_in, grad_out):
+        '''def backward_hook_callback(_layer_, grad_in, grad_out):
             # TODO: it will just have hardcoded indexes!!!
             self.layer_gradients[layer_key] = (grad_in, grad_out)
-
-        return forward_hook_callback, backward_hook_callback
+'''
+        return forward_hook_callback
 
     def create_activation_callback(self, layer_key):
         def output_hook_callback(grad):
@@ -179,15 +176,14 @@ class LayeredModule(nn.Module):
 
     def hook_layers(self):
         # remove any previously set hook handlers
-        [_clear_hooks(hooks) for hooks in (self.hooks_layer_forward, self.hooks_layer_backward)]
+        _clear_hooks(self.hooks_layer_forward)
         # clear stored values
-        [v.clear() for v in (self.layer_outputs, self.layer_gradients)]
+        self.layer_outputs.clear()
 
         for layer_key, layer in self.layers.items():
             if self.is_hooked_layer(layer_key):
-                fwd_cb, bwd_cb = self.create_layer_callbacks(layer_key)
+                fwd_cb = self.create_layer_callbacks(layer_key)
                 self.hooks_layer_forward[layer_key] = layer.register_forward_hook(fwd_cb)
-                self.hooks_layer_backward[layer_key] = layer.register_backward_hook(bwd_cb)
 
     def hook_parameters(self):
         # remove any previously set hook handlers
@@ -213,17 +209,19 @@ class LayeredModule(nn.Module):
         one_hot_output = one_hot_tensor(num_classes=model_output.size()[-1], target_class=target_class)
         # Backward pass
         model_output.backward(gradient=one_hot_output)
-        return self.layer_gradients
+        return self.activation_gradients
 
+    #def register_hook_for_tensor(self, ):
     def forward(self, x):
         if self.hook_to_activations:
             _clear_hooks(self.hooks_activations)
             self.activation_gradients.clear()
             # here, 'x' has the input, so we can hook to it
+            #TODO: abstract this
             self.hooks_activations['input'] = x.register_hook(self.create_activation_callback('input'))
 
         for layer_key, layer in self.layers.items():
-            x = layer(x)
+            x = layer(x) #all you need from external
             # if we enabled hooks to the outputs, add them now
             if self.hook_to_activations:
                 self.hooks_activations[layer_key] = x.register_hook(self.create_activation_callback(layer_key))
