@@ -5,6 +5,7 @@ import torch
 from fastai.layers import Lambda
 from torch import nn
 
+from .math import one_hot_tensor
 from .utils import clean_layer, key_to_tuple, get_parent_name, as_list, enumerate_module_keys, insert_layer_after, delete_all_layers_after
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
@@ -73,23 +74,31 @@ class Normalization(nn.Module):
         return (img - self.mean) / self.std
 
 
+def _clear_hooks(hooks: dict) -> None:
+    [h.remove() for h in hooks.values()]
+    hooks.clear()
+
+
 class LayeredModule(nn.Module):
     layers: nn.ModuleDict
     hooked_layer_keys: Optional = None
 
-    def __init__(self, layers, hooked_layer_keys=None):
+    def __init__(self, layers, hooked_layer_keys=None, hook_to_output_gradients=False):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
-        self.hooks_forward = {}
-        self.hooks_backward = {}
+        self.hooks_layer_forward = {}
+        self.hooks_layer_backward = {}
+        self.hooks_outputs = {}
         self.hooks_params = {}
 
         self.layer_outputs = {}
         self.layer_gradients = {}
+        self.output_gradients = {}
         self.param_gradients = {}
 
         self.set_hooked_layers(hooked_layer_keys)
+        self.hook_to_output_gradients = hook_to_output_gradients
 
     @staticmethod
     def from_cnn(cnn, prepended_layers=None):
@@ -111,7 +120,7 @@ class LayeredModule(nn.Module):
 
     # TODO: implement similar static methods for other archs
 
-    def set_layer_context(self, layer_key):
+    def create_layer_callbacks(self, layer_key):
         def forward_hook_callback(_layer_, _input_, output):
             self.layer_outputs[layer_key] = output
 
@@ -120,6 +129,13 @@ class LayeredModule(nn.Module):
             self.layer_gradients[layer_key] = grad_in
 
         return forward_hook_callback, backward_hook_callback
+
+    def create_output_callback(self, layer_key):
+        def output_hook_callback(grad):
+            self.output_gradients[layer_key] = grad
+            return grad
+
+        return output_hook_callback
 
     def set_hooked_layers(self, layer_keys):
         """
@@ -134,21 +150,21 @@ class LayeredModule(nn.Module):
 
     def hook_layers(self):
         # remove any previously set hook handlers
-        [hook.remove() for hooks in (self.hooks_forward, self.hooks_backward) for hook in hooks]
+        [_clear_hooks(hooks) for hooks in (self.hooks_layer_forward, self.hooks_layer_backward)]
         # clear stored values
-        [v.clear() for v in (self.hooks_forward, self.hooks_backward, self.layer_outputs, self.layer_gradients)]
+        [v.clear() for v in (self.layer_outputs, self.layer_gradients)]
 
         for layer_key, layer in self.layers.items():
             if self.is_hooked_layer(layer_key):
-                fwd_cb, bwd_cb = self.set_layer_context(layer_key)
-                self.hooks_forward[layer_key] = layer.register_forward_hook(fwd_cb)
-                self.hooks_backward[layer_key] = layer.register_backward_hook(bwd_cb)
+                fwd_cb, bwd_cb = self.create_layer_callbacks(layer_key)
+                self.hooks_layer_forward[layer_key] = layer.register_forward_hook(fwd_cb)
+                self.hooks_layer_backward[layer_key] = layer.register_backward_hook(bwd_cb)
 
     def hook_parameters(self):
         # remove any previously set hook handlers
-        [hook.remove() for hook in self.hooks_params]
+        _clear_hooks(self.hooks_params)
         # clear stored values
-        [v.clear() for v in (self.hooks_params, self.param_gradients)]
+        self.param_gradients.clear()
 
         def set_param_context(name):
             def hook_fn(grad):
@@ -166,16 +182,21 @@ class LayeredModule(nn.Module):
         model_output = self.forward(input)
 
         self.zero_grad()
-        num_classes = model_output.size()[-1]
-        one_hot_output = torch.FloatTensor(1, num_classes).zero_()
-        one_hot_output[0][target_class] = 1
+        one_hot_output = one_hot_tensor(num_classes=model_output.size()[-1], target_class=target_class)
         # Backward pass
         model_output.backward(gradient=one_hot_output)
         return self.layer_gradients
 
     def forward(self, x):
-        for layer in self.layers.values():
+        if self.hook_to_output_gradients:
+            _clear_hooks(self.hooks_outputs)
+            self.output_gradients.clear()
+
+        for layer_key, layer in self.layers.items():
             x = layer(x)
+            # if we enabled hooks to the outputs, add them now
+            if self.hook_to_output_gradients:
+                self.hooks_outputs[layer_key] = x.register_hook(self.create_output_callback(layer_key))
         return x
 
     def get_modules(self, name: str) -> List[nn.Module]:
