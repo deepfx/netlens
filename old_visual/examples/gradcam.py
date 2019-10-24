@@ -12,7 +12,7 @@ def generate_cam(model: LayeredModule, target_layer: str, input_image, target_cl
     # Full forward pass
     # conv_output is the output of convolutions at specified layer
     # model_output is the final output of the model (1, 1000)
-    model_output = model.forward(input_image)
+    model_output = model(input_image)
     conv_output = model.layer_outputs[target_layer]
     target_class = target_class or torch.argmax(model_output).item()
     # Target for backprop
@@ -25,6 +25,11 @@ def generate_cam(model: LayeredModule, target_layer: str, input_image, target_cl
     guided_gradients = model.activation_gradients[target_layer].numpy()[0]
     # Get convolution outputs
     target = conv_output.detach().numpy()[0]
+
+
+
+
+
     # Get weights from gradients
     weights = np.mean(guided_gradients, axis=(1, 2))  # Take averages for each gradient
     # Create empty numpy array for cam
