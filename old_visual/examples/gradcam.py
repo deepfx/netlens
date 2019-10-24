@@ -22,9 +22,9 @@ def generate_cam(model: LayeredModule, target_layer: str, input_image, target_cl
     # Backward pass with specified target
     model_output.backward(gradient=one_hot_output)
     # Get hooked gradients
-    guided_gradients = model.output_gradients[target_layer].numpy()[0]
+    guided_gradients = model.activation_gradients[target_layer].numpy()[0]
     # Get convolution outputs
-    target = conv_output.numpy()[0]
+    target = conv_output.detach().numpy()[0]
     # Get weights from gradients
     weights = np.mean(guided_gradients, axis=(1, 2))  # Take averages for each gradient
     # Create empty numpy array for cam
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     # Grad cam
     # grad_cam = GradCam(pretrained_model, target_layer=11)
     model = LayeredModule.from_alexnet(pretrained_model)
-    model.hook_to_output_gradients = True
+    model.hook_to_activations = True
     # Generate cam mask
     cam = generate_cam(model, 'features-relu-4', prep_img, target_class)
     # Save mask
