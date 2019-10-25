@@ -126,7 +126,7 @@ def preprocess_image(pil_im: Image, resize_im=True) -> torch.Tensor:
     """
     # Resize image
     if resize_im:
-        pil_im.thumbnail((512, 512))
+        pil_im.thumbnail((224, 224))
     im_as_arr = np.float32(pil_im)
     im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
     # Normalize the channels
@@ -172,7 +172,8 @@ def get_example_data(example_index: int, img_path) -> Tuple[PILImage, str, int]:
     # Pick one of the examples
     example_list = (('snake.jpg', 56),
                     ('cat_dog.png', 243),
-                    ('spider.png', 72))
+                    ('spider.png', 72),
+                    ('pelican.jpg', 144))
     img_name = example_list[example_index][0]
     target_class = example_list[example_index][1]
     # Read image
