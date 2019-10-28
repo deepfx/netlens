@@ -78,27 +78,54 @@ def _clear_hooks(hooks: dict) -> None:
     [h.remove() for h in hooks.values()]
     hooks.clear()
 
-
 class LayeredModule(nn.Module):
+    """
+    **HOOKS**
+
+    There are several places where you can hook to the network components.
+
+    1. Layers (nn.Module)
+       Forward hooks: they capture the OUTPUT of the module in the forward pass.
+
+       - Handlers: self.hooks_layer_forward
+       - Stored values: self.layer_outputs : a Mapping[str, Tensor], the key is the layer key, the value is the layer's output after the forward pass.
+       Backward hooks: they capture the GRADIENTS of the module in the backward pass.
+
+       - Handlers: self.hooks_layer_backward
+       - Stored values: self.layer_gradients : a Mapping[str, Tuple[Tensor]], the key is the layer key, the value is the layer's INCOMING gradient(s).
+         Note that there can be several gradients, hence a tuple.
+
+    2. Parameters (torch.Tensor)
+       It is possible to hook to the parameter themselves (e.g. weights, biases) when their gradients are computed.
+
+       - Handlers: self.hooks_params
+       - Stored values: self.param_gradients : a Mapping[str, Tensor], the key is the parameter name; the value is the incoming gradient to this
+         tensor.
+
+    3. Layer output tensors (torch.Tensor)
+       We can also hook to the output itself of each layer after the forward pass; to see the incoming gradients to it in the backward pass.
+
+       - Handlers: self.hooks_outputs
+       - Stored values: self.output_gradients : a Mapping[str, Tensor]
+
+    """
     layers: nn.ModuleDict
     hooked_layer_keys: Optional = None
 
-    def __init__(self, layers, hooked_layer_keys=None, hook_to_output_gradients=False):
+    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations=False):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
         self.hooks_layer_forward = {}
-        self.hooks_layer_backward = {}
-        self.hooks_outputs = {}
+        self.hooks_activations = {}
         self.hooks_params = {}
 
         self.layer_outputs = {}
-        self.layer_gradients = {}
-        self.output_gradients = {}
+        self.activation_gradients = {}
         self.param_gradients = {}
 
         self.set_hooked_layers(hooked_layer_keys)
-        self.hook_to_output_gradients = hook_to_output_gradients
+        self.hook_to_activations = hook_to_activations
 
     @staticmethod
     def from_cnn(cnn, prepended_layers=None):
@@ -124,16 +151,15 @@ class LayeredModule(nn.Module):
         def forward_hook_callback(_layer_, _input_, output):
             self.layer_outputs[layer_key] = output
 
-        def backward_hook_callback(_layer_, grad_in, _grad_out_):
+        '''def backward_hook_callback(_layer_, grad_in, grad_out):
             # TODO: it will just have hardcoded indexes!!!
-            self.layer_gradients[layer_key] = grad_in
+            self.layer_gradients[layer_key] = (grad_in, grad_out)
+'''
+        return forward_hook_callback
 
-        return forward_hook_callback, backward_hook_callback
-
-    def create_output_callback(self, layer_key):
+    def create_activation_callback(self, layer_key):
         def output_hook_callback(grad):
-            self.output_gradients[layer_key] = grad
-            return grad
+            self.activation_gradients[layer_key] = grad
 
         return output_hook_callback
 
@@ -150,15 +176,14 @@ class LayeredModule(nn.Module):
 
     def hook_layers(self):
         # remove any previously set hook handlers
-        [_clear_hooks(hooks) for hooks in (self.hooks_layer_forward, self.hooks_layer_backward)]
+        _clear_hooks(self.hooks_layer_forward)
         # clear stored values
-        [v.clear() for v in (self.layer_outputs, self.layer_gradients)]
+        self.layer_outputs.clear()
 
         for layer_key, layer in self.layers.items():
             if self.is_hooked_layer(layer_key):
-                fwd_cb, bwd_cb = self.create_layer_callbacks(layer_key)
+                fwd_cb = self.create_layer_callbacks(layer_key)
                 self.hooks_layer_forward[layer_key] = layer.register_forward_hook(fwd_cb)
-                self.hooks_layer_backward[layer_key] = layer.register_backward_hook(bwd_cb)
 
     def hook_parameters(self):
         # remove any previously set hook handlers
@@ -166,37 +191,40 @@ class LayeredModule(nn.Module):
         # clear stored values
         self.param_gradients.clear()
 
-        def set_param_context(name):
+        def create_parameter_callback(name):
             def hook_fn(grad):
                 self.param_gradients[name] = grad.detach()
-                return grad
 
             return hook_fn
 
         for name, param in self.layers.named_parameters():
-            self.hooks_params[name] = param.register_hook(set_param_context(name))
+            self.hooks_params[name] = param.register_hook(create_parameter_callback(name))
 
     def get_gradients_for_sample(self, input, target_class):
         # Put model in evaluation mode
         self.layers.eval()
-        model_output = self.forward(input)
+        model_output = self.__call__(input)
 
         self.zero_grad()
         one_hot_output = one_hot_tensor(num_classes=model_output.size()[-1], target_class=target_class)
         # Backward pass
         model_output.backward(gradient=one_hot_output)
-        return self.layer_gradients
+        return self.activation_gradients
 
+    #def register_hook_for_tensor(self, ):
     def forward(self, x):
-        if self.hook_to_output_gradients:
-            _clear_hooks(self.hooks_outputs)
-            self.output_gradients.clear()
+        if self.hook_to_activations:
+            _clear_hooks(self.hooks_activations)
+            self.activation_gradients.clear()
+            # here, 'x' has the input, so we can hook to it
+            #TODO: abstract this
+            self.hooks_activations['input'] = x.register_hook(self.create_activation_callback('input'))
 
         for layer_key, layer in self.layers.items():
-            x = layer(x)
+            x = layer(x) #all you need from external
             # if we enabled hooks to the outputs, add them now
-            if self.hook_to_output_gradients:
-                self.hooks_outputs[layer_key] = x.register_hook(self.create_output_callback(layer_key))
+            if self.hook_to_activations:
+                self.hooks_activations[layer_key] = x.register_hook(self.create_activation_callback(layer_key))
         return x
 
     def get_modules(self, name: str) -> List[nn.Module]:
