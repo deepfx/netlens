@@ -16,7 +16,9 @@ def normalize_numpy_for_pil(arr: np.ndarray) -> np.ndarray:
 
 
 IMAGE_CONVERSION_MAP = {
-    (np.ndarray, Image): lambda img: Image.fromarray(normalize_numpy_for_pil(img))
+    (np.ndarray, Image): lambda img: Image.fromarray(normalize_numpy_for_pil(img)),
+    (np.ndarray, torch.Tensor): torch.from_numpy,
+    (torch.Tensor, np.ndarray): lambda t: t.numpy()
 }
 
 
