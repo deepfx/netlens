@@ -5,6 +5,7 @@ import torch
 from fastai.layers import Lambda
 from torch import nn
 
+from visualization.hooks import HookDict
 from .math import one_hot_tensor
 from .utils import clean_layer, key_to_tuple, get_parent_name, as_list, enumerate_module_keys, insert_layer_after, delete_all_layers_after
 
@@ -78,6 +79,7 @@ def _clear_hooks(hooks: dict) -> None:
     [h.remove() for h in hooks.values()]
     hooks.clear()
 
+
 class LayeredModule(nn.Module):
     """
     **HOOKS**
@@ -87,26 +89,11 @@ class LayeredModule(nn.Module):
     1. Layers (nn.Module)
        Forward hooks: they capture the OUTPUT of the module in the forward pass.
 
-       - Handlers: self.hooks_layer_forward
-       - Stored values: self.layer_outputs : a Mapping[str, Tensor], the key is the layer key, the value is the layer's output after the forward pass.
-       Backward hooks: they capture the GRADIENTS of the module in the backward pass.
-
-       - Handlers: self.hooks_layer_backward
-       - Stored values: self.layer_gradients : a Mapping[str, Tuple[Tensor]], the key is the layer key, the value is the layer's INCOMING gradient(s).
-         Note that there can be several gradients, hence a tuple.
-
     2. Parameters (torch.Tensor)
        It is possible to hook to the parameter themselves (e.g. weights, biases) when their gradients are computed.
 
-       - Handlers: self.hooks_params
-       - Stored values: self.param_gradients : a Mapping[str, Tensor], the key is the parameter name; the value is the incoming gradient to this
-         tensor.
-
-    3. Layer output tensors (torch.Tensor)
+    3. Layer activation tensors (torch.Tensor)
        We can also hook to the output itself of each layer after the forward pass; to see the incoming gradients to it in the backward pass.
-
-       - Handlers: self.hooks_outputs
-       - Stored values: self.output_gradients : a Mapping[str, Tensor]
 
     """
     layers: nn.ModuleDict
@@ -116,13 +103,9 @@ class LayeredModule(nn.Module):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
-        self.hooks_layer_forward = {}
-        self.hooks_activations = {}
-        self.hooks_params = {}
-
-        self.layer_outputs = {}
-        self.activation_gradients = {}
-        self.param_gradients = {}
+        self.hooks_layers = None
+        self.hooks_activations = None
+        self.hooks_params = None
 
         self.set_hooked_layers(hooked_layer_keys)
         self.hook_to_activations = hook_to_activations
@@ -147,22 +130,6 @@ class LayeredModule(nn.Module):
 
     # TODO: implement similar static methods for other archs
 
-    def create_layer_callbacks(self, layer_key):
-        def forward_hook_callback(_layer_, _input_, output):
-            self.layer_outputs[layer_key] = output
-
-        '''def backward_hook_callback(_layer_, grad_in, grad_out):
-            # TODO: it will just have hardcoded indexes!!!
-            self.layer_gradients[layer_key] = (grad_in, grad_out)
-'''
-        return forward_hook_callback
-
-    def create_activation_callback(self, layer_key):
-        def output_hook_callback(grad):
-            self.activation_gradients[layer_key] = grad
-
-        return output_hook_callback
-
     def set_hooked_layers(self, layer_keys):
         """
         Allows to specify which layers (by keys) should be hooked. WARNING: it restarts all the hooks states!!!
@@ -176,29 +143,12 @@ class LayeredModule(nn.Module):
 
     def hook_layers(self):
         # remove any previously set hook handlers
-        _clear_hooks(self.hooks_layer_forward)
-        # clear stored values
-        self.layer_outputs.clear()
-
-        for layer_key, layer in self.layers.items():
-            if self.is_hooked_layer(layer_key):
-                fwd_cb = self.create_layer_callbacks(layer_key)
-                self.hooks_layer_forward[layer_key] = layer.register_forward_hook(fwd_cb)
+        self.hooks_layers = HookDict.from_modules({layer_key: layer for layer_key, layer in self.layers.items() if self.is_hooked_layer(layer_key)},
+                                                  lambda _m, _input, output: output)
 
     def hook_parameters(self):
         # remove any previously set hook handlers
-        _clear_hooks(self.hooks_params)
-        # clear stored values
-        self.param_gradients.clear()
-
-        def create_parameter_callback(name):
-            def hook_fn(grad):
-                self.param_gradients[name] = grad.detach()
-
-            return hook_fn
-
-        for name, param in self.layers.named_parameters():
-            self.hooks_params[name] = param.register_hook(create_parameter_callback(name))
+        self.hooks_params = HookDict.from_tensors(dict(self.layers.named_parameters()), lambda grad: grad)
 
     def get_gradients_for_sample(self, input, target_class):
         # Put model in evaluation mode
@@ -209,22 +159,19 @@ class LayeredModule(nn.Module):
         one_hot_output = one_hot_tensor(num_classes=model_output.size()[-1], target_class=target_class)
         # Backward pass
         model_output.backward(gradient=one_hot_output)
-        return self.activation_gradients
+        return self.hooks_activations.stored
 
-    #def register_hook_for_tensor(self, ):
     def forward(self, x):
         if self.hook_to_activations:
-            _clear_hooks(self.hooks_activations)
-            self.activation_gradients.clear()
+            self.hooks_activations = HookDict()
             # here, 'x' has the input, so we can hook to it
-            #TODO: abstract this
-            self.hooks_activations['input'] = x.register_hook(self.create_activation_callback('input'))
+            self.hooks_activations.add_gradient_captor_hook('input', x)
 
         for layer_key, layer in self.layers.items():
-            x = layer(x) #all you need from external
+            x = layer(x)  # all you need from external
             # if we enabled hooks to the outputs, add them now
             if self.hook_to_activations:
-                self.hooks_activations[layer_key] = x.register_hook(self.create_activation_callback(layer_key))
+                self.hooks_activations.add_gradient_captor_hook(layer_key, x)
         return x
 
     def get_modules(self, name: str) -> List[nn.Module]:
