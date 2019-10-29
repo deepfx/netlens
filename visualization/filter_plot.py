@@ -2,6 +2,8 @@ import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
 
+# TODO: please don't put in master or this folder if it's not ready
+
 def plot_filters_single_channel_big(t):
     # setting the rows and columns
     nrows = t.shape[0] * t.shape[2]
