@@ -1,7 +1,11 @@
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
+from torchvision.models import alexnet, vgg16
+from torch.nn import Conv2d
 
+from .modules import LayeredModule
 # TODO: please don't put in master or this folder if it's not ready
 
 def plot_filters_single_channel_big(t):
@@ -79,30 +83,25 @@ def plot_filters_multi_channel(t):
     plt.tight_layout()
     plt.show()
 
-def plot_weights(model, layer_num, single_channel=True, collated=False):
+def plot_weights(layer:Conv2d, single_channel=True, collated=False):
     # extracting the model features at the particular layer number
-    layer = model.features[layer_num]
-
     # checking whether the layer is convolution layer or not
-    if isinstance(layer, nn.Conv2d):
+
         # getting the weight tensor data
-        weight_tensor = model.features[layer_num].weight.data
-
-        if single_channel:
-            if collated:
-                plot_filters_single_channel_big(weight_tensor)
-            else:
-                plot_filters_single_channel(weight_tensor)
-
+    weight_tensor = layer.weight.data
+    if single_channel:
+        if collated:
+            plot_filters_single_channel_big(weight_tensor)
         else:
-            if weight_tensor.shape[1] == 3:
-                plot_filters_multi_channel(weight_tensor)
-            else:
-                print("Can only plot weights with three channels with single channel = False")
+            plot_filters_single_channel(weight_tensor)
 
     else:
-        print("Can only visualize layers which are convolutional")
-
+        if weight_tensor.shape[1] == 3:
+            plot_filters_multi_channel(weight_tensor)
+        else:
+            print("Can only plot weights with three channels with single channel = False")
 
 # visualize weights for alexnet - first conv layer
 #plot_weights(alexnet, 0, single_channel=False)
+
+
