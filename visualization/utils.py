@@ -26,6 +26,11 @@ def key_to_tuple(key: str) -> Tuple[str, int]:
     return parts[0], int(parts[1])
 
 
+def get_name_from_key(key: str) -> str:
+    parts = key.rsplit('-', 2)
+    return parts[1] if len(parts) > 2 else parts[0]
+
+
 def get_parent_name(name):
     return name.rsplit('.', 1)[0] if '.' in name else ''
 
