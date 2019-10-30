@@ -108,8 +108,8 @@ class LayeredModule(nn.Module):
         self.hook_to_activations = hook_to_activations
         self.custom_activation_hook_factory = custom_activation_hook_factory
 
-    @staticmethod
-    def from_cnn(cnn, prepended_layers=None, *args, **kwargs):
+    @classmethod
+    def from_cnn(cls, cnn, prepended_layers=None, *args, **kwargs):
         """
         Converts a generic CNN into our standardized LayeredModule. The layer ids are inferred automatically from the CNN's layers.
         :param cnn:
@@ -117,14 +117,14 @@ class LayeredModule(nn.Module):
         :return:
         """
         cnn = copy.deepcopy(cnn)
-        return LayeredModule(get_flat_layers(cnn, prepended_layers), *args, **kwargs)
+        return cls(get_flat_layers(cnn, prepended_layers), *args, **kwargs)
 
-    @staticmethod
-    def from_alexnet(model, *args, **kwargs):
+    @classmethod
+    def from_alexnet(cls, model, *args, **kwargs):
         layers = get_nested_layers(model)
         # the Pytorch implementation of AlexNet has a flatten in the forward, we need to insert it in the layers
         layers = insert_layer_after(layers, 'avgpool-0', 'flatten', Lambda(lambda x: torch.flatten(x, 1)))
-        return LayeredModule(layers, *args, **kwargs)
+        return cls(layers, *args, **kwargs)
 
     # TODO: implement similar static methods for other archs
 

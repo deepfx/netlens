@@ -93,10 +93,10 @@ class HookDict:
         """
         self.hooks[key] = TensorHook(t, lambda grad: grad)
 
-    @staticmethod
-    def from_tensors(ts: Mapping[str, Tensor], hook_func: Callable[[Tensor], Any], detach: bool = True):
-        return HookDict({key: TensorHook(t, hook_func, detach) for key, t in ts.items()})
+    @classmethod
+    def from_tensors(cls, ts: Mapping[str, Tensor], hook_func: Callable[[Tensor], Any], detach: bool = True):
+        return cls({key: TensorHook(t, hook_func, detach) for key, t in ts.items()})
 
-    @staticmethod
-    def from_modules(ms: Mapping[str, nn.Module], hook_func: ModuleHookFunc, is_forward: bool = True, detach: bool = True):
-        return HookDict({key: ModuleHook(m, hook_func, is_forward, detach) for key, m in ms.items()})
+    @classmethod
+    def from_modules(cls, ms: Mapping[str, nn.Module], hook_func: ModuleHookFunc, is_forward: bool = True, detach: bool = True):
+        return cls({key: ModuleHook(m, hook_func, is_forward, detach) for key, m in ms.items()})
