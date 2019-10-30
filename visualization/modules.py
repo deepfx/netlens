@@ -1,13 +1,12 @@
 import copy
-from typing import List, Tuple, Optional, Iterable
+from typing import List, Tuple, Optional, Iterable, Callable, Any
 
 import torch
 from fastai.layers import Lambda
-from torch import nn
+from torch import nn, Tensor
 
-from visualization.hooks import HookDict
-from .math import one_hot_tensor
-from .utils import clean_layer, key_to_tuple, get_parent_name, as_list, enumerate_module_keys, insert_layer_after, delete_all_layers_after
+from .hooks import HookDict, TensorHook
+from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, insert_layer_after, delete_all_layers_after
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 # externally exposed – to smoothen out PyTorch changes
@@ -75,9 +74,7 @@ class Normalization(nn.Module):
         return (img - self.mean) / self.std
 
 
-def _clear_hooks(hooks: dict) -> None:
-    [h.remove() for h in hooks.values()]
-    hooks.clear()
+CustomHookFunc = Callable[[nn.Module, str], Callable[[Tensor], Any]]
 
 
 class LayeredModule(nn.Module):
@@ -99,7 +96,7 @@ class LayeredModule(nn.Module):
     layers: nn.ModuleDict
     hooked_layer_keys: Optional = None
 
-    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations=False):
+    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
@@ -109,6 +106,7 @@ class LayeredModule(nn.Module):
 
         self.set_hooked_layers(hooked_layer_keys)
         self.hook_to_activations = hook_to_activations
+        self.custom_activation_hook_factory = custom_activation_hook_factory
 
     @staticmethod
     def from_cnn(cnn, prepended_layers=None, *args, **kwargs):
@@ -150,32 +148,29 @@ class LayeredModule(nn.Module):
         # remove any previously set hook handlers
         self.hooks_params = HookDict.from_tensors(dict(self.layers.named_parameters()), lambda grad: grad)
 
-    def get_gradients_for_sample(self, input, target_class):
-        # Put model in evaluation mode
-        self.layers.eval()
-        model_output = self.__call__(input)
-
-        self.zero_grad()
-        one_hot_output = one_hot_tensor(num_classes=model_output.size()[-1], target_class=target_class)
-        # Backward pass
-        model_output.backward(gradient=one_hot_output)
-        return self.hooks_activations.stored
+    def _add_activation_hook(self, key: str, x: Tensor):
+        _hook_func = None
+        if self.custom_activation_hook_factory is not None:
+            _hook_func = self.custom_activation_hook_factory(self, key)
+        if _hook_func is None:
+            _hook_func = lambda grad: grad
+        self.hooks_activations[key] = TensorHook(x, _hook_func)
 
     def forward(self, x):
         if self.hook_to_activations:
             self.hooks_activations = HookDict()
             # here, 'x' has the input, so we can hook to it
-            self.hooks_activations.add_gradient_captor_hook('input', x)
+            self._add_activation_hook('input', x)
 
         for layer_key, layer in self.layers.items():
             x = layer(x)  # all you need from external
             # if we enabled hooks to the outputs, add them now
             if self.hook_to_activations:
-                self.hooks_activations.add_gradient_captor_hook(layer_key, x)
+                self._add_activation_hook(layer_key, x)
         return x
 
     def get_modules(self, name: str) -> List[nn.Module]:
-        return [layer for key, layer in self.layers.items() if key_to_tuple(key)[0] == name]
+        return [layer for key, layer in self.layers.items() if get_name_from_key(key) == name]
 
     def get_module(self, layer_key: str) -> nn.Module:
         return self.layers[layer_key]

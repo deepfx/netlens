@@ -12,10 +12,15 @@ def is_collection(x: Any) -> bool:
 
 
 class Hook(ABC):
-    def __init__(self, hook, detach: bool = True):
-        self.detach, self.stored = detach, None
-        self.hook = hook
+    def __init__(self, hook_receiver, hook_func, detach: bool = True):
+        self.hook_func, self.detach, self.stored = hook_func, detach, None
+        self.hook = hook_receiver(self.hook_fn_wrapper)
         self.removed = False
+
+    def hook_fn_wrapper(self, *args):
+        out = self.hook_func(*args)
+        self.stored = out.detach() if self.detach else out
+        return out
 
     def remove(self):
         if not self.removed:
@@ -34,26 +39,13 @@ class Hook(ABC):
 
 class TensorHook(Hook):
     def __init__(self, t: Tensor, hook_func: Callable[[Tensor], Any], detach: bool = True):
-        self.hook_func = hook_func
-        super(TensorHook, self).__init__(t.register_hook(self.hook_fn), detach)
-
-    def hook_fn(self, grad: Tensor):
-        if self.detach:
-            grad = grad.detach()
-        self.stored = self.hook_func(grad)
+        super(TensorHook, self).__init__(t.register_hook, hook_func, detach)
 
 
 class ModuleHook(Hook):
     def __init__(self, m: nn.Module, hook_func: ModuleHookFunc, is_forward: bool = True, detach: bool = True):
-        self.hook_func = hook_func
         f = m.register_forward_hook if is_forward else m.register_backward_hook
-        super(ModuleHook, self).__init__(f(self.hook_fn), detach)
-
-    def hook_fn(self, module: nn.Module, input: Tensors, output: Tensors):
-        if self.detach:
-            input = (o.detach() for o in input) if is_collection(input) else input.detach()
-            output = (o.detach() for o in output) if is_collection(output) else output.detach()
-        self.stored = self.hook_func(module, input, output)
+        super(ModuleHook, self).__init__(f, hook_func, detach)
 
 
 class HookDict:
@@ -62,6 +54,12 @@ class HookDict:
 
     def __getitem__(self, key):
         return self.hooks[key]
+
+    def __setitem__(self, key, hook):
+        self.hooks[key] = hook
+
+    def __delitem__(self, key):
+        del self.hooks[key]
 
     def __len__(self):
         return len(self.hooks)
