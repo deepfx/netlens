@@ -13,7 +13,6 @@ config = {
     }
 }
 
-
 @curry
 def get_steps(distance: int, step: int):
     return ((x, min(x + step, distance)) for x in range(0, distance, step))
