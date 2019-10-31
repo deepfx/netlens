@@ -108,6 +108,9 @@ class LayeredModule(nn.Module):
         self.hook_to_activations = hook_to_activations
         self.custom_activation_hook_factory = custom_activation_hook_factory
 
+    def copy(self):
+        return self.__class__(self.layers.items(), self.hooked_layer_keys, self.hook_to_activations, self.custom_activation_hook_factory)
+
     @classmethod
     def from_cnn(cls, cnn, prepended_layers=None, *args, **kwargs):
         """
