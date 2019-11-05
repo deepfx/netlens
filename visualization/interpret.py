@@ -1,8 +1,8 @@
 from typing import Mapping
 
-import torch.nn.functional as F
 from torch import Tensor
 
+from pyimgy.optional.torch_utils import *
 from visualization.image_proc import *
 from visualization.math import one_hot_tensor
 from visualization.modules import LayeredModule
@@ -44,7 +44,7 @@ class NetLens:
         model_output = self.model(model_input)
         num_classes = model_output.size()[-1]
         target_class = self.target_class or torch.argmax(model_output).item()
-        one_hot_output = one_hot_tensor(num_classes, target_class)
+        one_hot_output = one_hot_tensor(num_classes, target_class, device=model_output.device)
         # Backward pass
         self.model.zero_grad()
         model_output.backward(gradient=one_hot_output)
@@ -56,8 +56,7 @@ class NetLens:
         return self.model.hooks_activations.stored
 
     def _show_gradient_images(self, grads, name: str):
-        if isinstance(grads, Tensor):
-            grads = grads.squeeze(0).numpy()
+        grads = convert_image(grads, to_type=np.ndarray, shape='CWH')
         grads_color = normalize_to_range(grads)
         grads_gray = convert_to_grayscale(grads)
         show_images([recreate_image(self.input_image), grads_color, grads_gray], ['Original image', f'{name} Color', f'{name} Grayscale'])
@@ -125,13 +124,12 @@ class NetLens:
         cam.clamp_min_(0.0)
         cam = (cam - cam.min()) / (cam.max() - cam.min())  # Normalize between 0-1
         height, width = self.input_image.shape[2:]
-        # the interpolation needs a 4-D tensor (B, C, H, W)
-        cam = F.interpolate(cam[None, None], size=(height, width), mode='bilinear' if interpolate else 'nearest')
-        return cam[0, 0]  # bring it back to 2-D
+        return resize_as_torch(cam, width, height, mode='bilinear' if interpolate else 'nearest')
 
     def show_gradcam(self, *args, **kwargs):
         cam = self.generate_cam(*args, **kwargs)
-        heatmap, heatmap_on_image = apply_colormap_on_image(recreate_image(self.input_image, to_pil=True), cam.numpy(), 'hsv')
+        original_image = recreate_image(self.input_image, to_pil=True)
+        heatmap, heatmap_on_image = apply_colormap_on_image(original_image, convert_image(cam, to_type=np.ndarray), 'hsv')
         show_images([heatmap, heatmap_on_image, cam], ['CAM Heatmap', 'CAM Heatmap on image', 'CAM Grayscale'])
 
     def generate_guided_gradcam(self, *args, **kwargs) -> Tensor:
