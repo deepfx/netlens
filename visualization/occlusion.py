@@ -1,31 +1,45 @@
 # custom function to conduct occlusion experim
 import seaborn as sns
-import torch
-from torch import nn
-import numpy as np
+import skimage
+import torch.nn.functional as F
+from flashtorch.utils.imagenet import ImageNetIndex
 from torchvision import models
-from visualization.modules import LayeredModule
-from visualization.image_proc import *
 
-def occlusion(model, image, label, occ_size=50, occ_stride=50, occ_pixel=0.5):
+from visualization.image_proc import *
+from visualization.tiling import *
+
+
+def show_occlusion_tiles(image, occ_size=50, occ_stride=50):
+    image = np.asarray(image)
+    width, height = image.shape[:2]
+
+    # get occlusion tiles
+    occ_tiles = get_tiles_positions(width, height, occ_size, occ_size, occ_stride, occ_stride)
+
+    # show the tiles
+    show_image_with_tiles(image, occ_size, occ_tiles)
+    plt.show()
+
+
+def occlusion(model, image, label, occ_size=50, occ_stride=50, occ_pixel=0):
     # get the width and height of the image
-    width, height = image.shape[-2], image.shape[-1]
+    width, height = image.shape[-2:]
 
     # setting the output image width and height
-    output_height = int(np.ceil((height - occ_size) / occ_stride))
-    output_width = int(np.ceil((width - occ_size) / occ_stride))
+    output_height = (height - occ_size) // occ_stride
+    output_width = (width - occ_size) // occ_stride
     # create a white image of sizes we defined
-    heatmap = torch.zeros((output_height, output_width))
-    # iterate all the pixels in each column
-    for h in range(0, height):
-        for w in range(0, width):
 
+    heatmap = torch.zeros((output_height, output_width))
+    classmap = torch.zeros((output_height, output_width))
+
+    # iterate all the pixels in each column
+    for h in range(0, output_height):
+        for w in range(0, output_width):
             h_start = h * occ_stride
             w_start = w * occ_stride
             h_end = min(height, h_start + occ_size)
             w_end = min(width, w_start + occ_size)
-            if (w_end) >= width or (h_end) >= height:
-                continue
 
             input_image = image.clone().detach()
 
@@ -33,50 +47,50 @@ def occlusion(model, image, label, occ_size=50, occ_stride=50, occ_pixel=0.5):
             input_image[:, :, w_start:w_end, h_start:h_end] = occ_pixel
 
             # run inference on modified image
-            output = model(input_image)
-            output = nn.functional.softmax(output, dim=1)
-
-            prob = output.tolist()[0][label]
-
             # setting the heatmap location to probability value
-            heatmap[h, w] = prob
+            heatmap[h, w], classmap[h, w] = prob_for_label(model, input_image, label)
 
-    return heatmap
+    return heatmap, classmap
+
 
 def prob_for_label(model, image, label):
     output = model(image)
-    output = nn.functional.softmax(output, dim=1)
+    output = F.softmax(output, dim=1)
+    pred_class = torch.argmax(output, dim=1).item()
+    prob = output[0, label].item()
+    return prob, pred_class
 
-    prob = output.tolist()[0][label]
-    return prob
 
-if __name__ == '__main__':
-    model = LayeredModule.from_alexnet(models.alexnet(pretrained=True))
-    print(model.layers)
+def main():
+    original_img, name, target_class = get_example_data(3, img_path='../old_visual/input_images/')
 
-    original_img, name, target_class = get_example_data(0, img_path='../old_visual/input_images/')
     prep_img = preprocess_image(original_img)
-    #output = model(prep_img)
-    m_orig = models.alexnet(pretrained=True)
-    p = prob_for_label(m_orig, prep_img, target_class)
 
-    print(p, "prob", target_class, "targ")
-    '''
-        #interestingly changes a bit everytime
-    print(output[-1][target_class], target_class)
-    print(output[-1].max(), output[-1])
-    hm = occlusion(model, prep_img, target_class, occ_size=25, occ_stride=10, occ_pixel=0  )
+    m_orig = models.vgg19_bn(pretrained=True)
+    m_orig.eval()
+
+    hm, cm = occlusion(m_orig, prep_img, target_class, occ_size=20, occ_stride=20, occ_pixel=0)
     prob_no_occ = torch.max(hm)
 
-    #ax = sns.heatmap(uniform_data, )
-    ax = sns.heatmap(hm, xticklabels=False, yticklabels=False, vmax=prob_no_occ)
+    hm_scaled = skimage.transform.resize(hm, prep_img.shape[-2:], order=0)
+
+    _, axes = plt.subplots(1, 3, figsize=(15, 8))
+
+    sns.heatmap(hm, xticklabels=False, yticklabels=False, vmax=prob_no_occ, ax=axes[0])
+    sns.heatmap(cm, xticklabels=False, yticklabels=False, ax=axes[1])
+    axes[2].imshow(original_img)
+    axes[2].imshow(hm_scaled, alpha=0.50)
     plt.show()
-    #figure = imgplot.get_figure()
-    print(hm)
-    
-    '''
+    # print(hm)
+
+    det_classes, det_counts = torch.unique(cm, return_counts=True)
+
+    ini = ImageNetIndex()
+    in_labels = {v: k for k, v in ini.items()}
+
+    print('DETECTED CLASSES')
+    print('\n'.join(f'{int(cl)}\t{cnt}\t{in_labels[cl]}' for cl, cnt in zip(det_classes.tolist(), det_counts.tolist())))
 
 
-
-
-
+if __name__ == '__main__':
+    main()
