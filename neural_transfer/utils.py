@@ -22,3 +22,7 @@ def clean_layer(layer):
 
 def find_indices(iterable, predicate):
     return [i for i, x in enumerate(iterable) if predicate(x)]
+
+
+def is_instance_of_any(types):
+    return lambda x: any(isinstance(x, t) for t in types)
