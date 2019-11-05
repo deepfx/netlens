@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, List, Tuple, Iterable
+from typing import List, Tuple, Iterable
 
 import torch
 import torch.nn.functional as F
@@ -9,8 +9,28 @@ from torch import optim
 
 from .utils import gram_matrix, clean_layer, is_instance_of_any
 
+# GENERIC NAMES FOR DIFFERENT LAYERS
+
+MODULE_NAME_MAP = {
+    nn.Conv2d: 'conv',
+    nn.ReLU: 'relu',
+    nn.MaxPool2d: 'pool',
+    nn.BatchNorm2d: 'bn'
+}
+
+
+def get_module_name(module: nn.Module) -> str:
+    clazz = module.__class__
+    if clazz in MODULE_NAME_MAP:
+        return MODULE_NAME_MAP[clazz]
+    if hasattr(clazz, 'name'):
+        return clazz.name
+    return clazz.__name__
+
 
 class Normalization(nn.Module):
+    name: str = 'pre_normalization'
+
     def __init__(self, mean, std):
         super(Normalization, self).__init__()
         # .view the mean and std to make them [C x 1 x 1] so that they can
@@ -25,6 +45,7 @@ class Normalization(nn.Module):
 
 
 class ContentLoss(nn.Module):
+    name: str = 'content_loss'
 
     def __init__(self, target):
         super(ContentLoss, self).__init__()
@@ -40,6 +61,7 @@ class ContentLoss(nn.Module):
 
 
 class StyleLoss(nn.Module):
+    name: str = 'style_loss'
 
     def __init__(self, target_feature):
         super(StyleLoss, self).__init__()
@@ -52,66 +74,69 @@ class StyleLoss(nn.Module):
 
 
 class LayeredModule(nn.Module):
-    preprocessor: Optional[nn.Module]
     layers: nn.ModuleList
-    postprocessor: Optional[nn.Module]
 
-    def __init__(self, layers, preprocessor=None, postprocessor=None):
+    def __init__(self, layers):
         super(LayeredModule, self).__init__()
-        self.preprocessor = preprocessor
         self.layers = layers
-        self.postprocessor = postprocessor
 
     @staticmethod
     def from_cnn(cnn, normalizer):
         cnn = copy.deepcopy(cnn)
-        layers = nn.ModuleList([clean_layer(layer) for layer in cnn.children()])
-        return LayeredModule(layers, preprocessor=normalizer)
+        layers = nn.ModuleList([normalizer] + [clean_layer(layer) for layer in cnn.children()])
+        return LayeredModule(layers)
 
     # TODO: implement similar static methods for other archs
 
     def forward(self, x):
-        for layer in ([self.preprocessor] + list(self.layers) + [self.postprocessor]):
+        for layer in self.layers:
             if layer is not None:
                 x = layer(x)
         return x
 
-    def find_indices(self, module: type) -> List[int]:
-        return [i for i, l in enumerate(self.layers) if isinstance(l, module)]
+    def find_indices(self, name: str) -> List[int]:
+        return [i for i, layer in enumerate(self.layers) if get_module_name(layer) == name]
 
-    def get_modules(self, module: type) -> List[nn.Module]:
-        return [layer for layer in self.layers if isinstance(layer, module)]
+    def get_modules(self, name: str) -> List[nn.Module]:
+        return [layer for layer in self.layers if get_module_name(layer) == name]
 
-    def get_module(self, module: type, nth: int) -> nn.Module:
-        return self.get_modules(module)[nth]
+    def get_module(self, name: str, nth: int) -> nn.Module:
+        return self.get_modules(name)[nth]
 
-    def evaluate_at_layer(self, x: torch.Tensor, key: Tuple[type, int]):
-        module, nth = key
-        until_idx = self.find_indices(module)[nth]
-        x = self.preprocessor(x)
+    def evaluate_at_layer(self, x: torch.Tensor, key: Tuple[str, int]):
+        name, nth = key
+        until_idx = self.find_indices(name)[nth]
         for layer in self.layers[:until_idx + 1]:
             x = layer(x)
         return x
 
-    def evaluate_at_layers(self, x: torch.Tensor, keys: Iterable[Tuple[type, int]]):
+    def evaluate_at_layers(self, x: torch.Tensor, keys: Iterable[Tuple[str, int]], compute_all: bool = False):
+        """
+        Allows to collect the activation values (outputs of some network layers) for a given input. Similar to :func:`evaluate_at_layer`
+        but more efficient because it requires only one pass thru the network.
+        :param x: the input tensor that will be fed to the network.
+        :param keys: a list of "keys" ((module name, module nr) tuples) from which we want to fetch the activations, for the given input.
+        :param compute_all: if True, all the layers will be computed, even if not requested. Default=False.
+        :return: a map where the keys are the provided ones, and the values are the collected activation maps (tensors).
+        """
         all_indices = [self.find_indices(m)[n] for m, n in keys]
         keys_indices = {idx: key for idx, key in zip(all_indices, keys)}
 
         values = {}
-        x = self.preprocessor(x)
-        for idx, layer in enumerate(self.layers[:max(all_indices) + 1]):
+        layers = self.layers if compute_all else self.layers[:max(all_indices) + 1]
+        for idx, layer in enumerate(layers):
             x = layer(x)
             if idx in keys_indices:
                 values[keys_indices[idx]] = x
         return values
 
-    def insert_after(self, insertion_key: Tuple[type, int], layer: nn.Module):
-        module, nth = insertion_key
-        idx = self.find_indices(module)[nth]
+    def insert_after(self, insertion_key: Tuple[str, int], layer: nn.Module):
+        name, nth = insertion_key
+        idx = self.find_indices(name)[nth]
         self.layers.insert(idx + 1, layer)
 
 
-class StyleTransferModule(LayeredModule):
+class   StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
 
@@ -121,7 +146,7 @@ class StyleTransferModule(LayeredModule):
                  style_target=None,
                  style_layer_keys=None):
         arch = copy.deepcopy(arch)
-        super(StyleTransferModule, self).__init__(arch.layers, arch.preprocessor, None)
+        super(StyleTransferModule, self).__init__(arch.layers)
         self.content_target = content_target
         self.style_target = style_target
         if content_target is not None and content_layer_keys is not None:
@@ -146,8 +171,8 @@ class StyleTransferModule(LayeredModule):
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, verbose=True):
         optimizer = optimizer_class([input_img.requires_grad_()])
 
-        style_losses = self.get_modules(StyleLoss)
-        content_losses = self.get_modules(ContentLoss)
+        style_losses = self.get_modules(StyleLoss.name)
+        content_losses = self.get_modules(ContentLoss.name)
 
         print("Optimizing...")
         run = [0]
