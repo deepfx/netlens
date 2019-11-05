@@ -22,9 +22,9 @@ def generate_cam(model: LayeredModule, target_layer: str, input_image, target_cl
     # Backward pass with specified target
     model_output.backward(gradient=one_hot_output)
     # Get hooked gradients
-    guided_gradients = model.output_gradients[target_layer].data.numpy()[0]
+    guided_gradients = model.output_gradients[target_layer].numpy()[0]
     # Get convolution outputs
-    target = conv_output.data.numpy()[0]
+    target = conv_output.numpy()[0]
     # Get weights from gradients
     weights = np.mean(guided_gradients, axis=(1, 2))  # Take averages for each gradient
     # Create empty numpy array for cam
