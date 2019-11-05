@@ -15,7 +15,7 @@ def gram_matrix(input: torch.Tensor) -> torch.Tensor:
     return G.div(a * b * c * d)
 
 
-def one_hot_tensor(num_classes: int, target_class: int):
-    one_hot = torch.zeros(1, num_classes)
+def one_hot_tensor(num_classes: int, target_class: int, device=None):
+    one_hot = torch.zeros(1, num_classes, device=device)
     one_hot[0, target_class] = 1
     return one_hot
