@@ -1,81 +1,9 @@
-import math
-from functools import wraps
-from typing import Tuple, Union
+from typing import Tuple
 
 import PIL.Image
 import matplotlib.cm
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-from PIL.Image import Image as PILImage
 
-
-# SOME BASIC CONVERSIONS
-
-def normalize_numpy_for_pil(arr: np.ndarray) -> np.ndarray:
-    return (arr * 255).astype(np.uint8)
-
-
-IMAGE_CONVERSION_MAP = {
-    (np.ndarray, PILImage): lambda img: PIL.Image.fromarray(normalize_numpy_for_pil(img)),
-    (PILImage, np.ndarray): lambda img: np.array(img, dtype=np.float32) / 255,
-    (np.ndarray, torch.Tensor): torch.from_numpy,
-    (torch.Tensor, np.ndarray): lambda t: t.numpy()
-}
-
-
-def convert(img, to_type):
-    from_type = type(img)
-    if from_type == to_type:
-        return img
-    converter = IMAGE_CONVERSION_MAP.get((from_type, to_type))
-    if converter is None:
-        raise Exception(f'Not possible to convert from {from_type} to {to_type}!!!')
-    return converter(img)
-
-
-def replace_at_index(tup: tuple, idx: int, value) -> tuple:
-    assert 0 <= idx < len(tup)
-    return tup[:idx] + (value,) + tup[idx + 1:]
-
-
-def converting(to: type, argument: Union[int, str] = 0, return_pos: int = 0, preserve_type: bool = False):
-    """
-    A neat decorator to simplify common conversions in functions.
-
-    :param to: The type to which the indicated argument should be converted BEFORE calling the function.
-    :param argument: The position of the argument to convert. If it's an integer, it is taken from the positional args; if it's a string from the
-                     named kwargs.
-    :param return_pos: If preserve_type=True, the position of the corresponding output that has to be converted back.
-    :param preserve_type: if True, the type of the output is preserved, i.e. it is converted back to the original type of the input, if needed.
-    :return:
-    """
-
-    def convert_decorator(func):
-        @wraps(func)
-        def decorated(*args, **kwargs):
-            input = args[argument] if isinstance(argument, int) else kwargs[argument]
-            original_type = type(input)
-            input_converted = convert(input, to_type=to)
-
-            if isinstance(argument, int):
-                # args is a tuple, so we cannot modify it directly
-                args = replace_at_index(args, argument, input_converted)
-            else:
-                kwargs[argument] = input_converted
-
-            outputs = func(*args, **kwargs)
-
-            if not preserve_type:
-                return outputs
-            elif isinstance(outputs, tuple):
-                return replace_at_index(outputs, return_pos, convert(outputs[return_pos], to_type=original_type))
-            else:
-                return convert(outputs, to_type=original_type)
-
-        return decorated
-
-    return convert_decorator
+from pyimgy.optional.torch import *
 
 
 def convert_to_grayscale(im_as_arr: np.ndarray, use_percentile: bool = True) -> np.ndarray:
@@ -117,44 +45,8 @@ def apply_colormap_on_image(org_im: PILImage, activation: np.ndarray, colormap_n
     heatmap[:, :, 3] = 0.4
 
     # Apply heatmap on image
-    heatmap_on_image = PIL.Image.alpha_composite(org_im.convert('RGBA'), convert(heatmap, to_type=PILImage))
-    return convert(opaque_heatmap, to_type=PILImage), heatmap_on_image
-
-
-def format_np_output(np_arr: np.ndarray) -> np.ndarray:
-    """
-    It converts all the outputs to the same format which is 3xWxH using successive if conditions.
-
-    :param np_arr: (Numpy array) Matrix of shape 1xWxH or WxH or 3xWxH
-    :return:
-    """
-    # Phase/Case 1: The np arr only has 2 dimensions
-    # Result: Add a dimension at the beginning
-    if np_arr.ndim == 2:
-        np_arr = np.expand_dims(np_arr, axis=0)
-    # Phase/Case 2: Np arr has only 1 channel (assuming first dim is channel)
-    # Result: Repeat first channel and convert 1xWxH to 3xWxH
-    if np_arr.shape[0] == 1:
-        np_arr = np.repeat(np_arr, 3, axis=0)
-    # Phase/Case 3: Np arr is of shape 3xWxH
-    # Result: Convert it to WxHx3 in order to make it save-able by PIL
-    if np_arr.shape[0] == 3:
-        np_arr = np_arr.transpose((1, 2, 0))
-    # Phase/Case 4: NP arr is normalized between 0-1
-    # Result: Multiply with 255 and change type to make it save-able by PIL
-    if np.max(np_arr) <= 1:
-        np_arr = normalize_numpy_for_pil(np_arr)
-    return np_arr
-
-
-def save_image(im, path):
-    """
-    Saves a numpy matrix or PIL image as an image.
-    """
-    if isinstance(im, (np.ndarray, np.generic)):
-        im = format_np_output(im)
-        im = PIL.Image.fromarray(im)
-    im.save(path)
+    heatmap_on_image = PIL.Image.alpha_composite(org_im.convert('RGBA'), convert_to_standard_pil(heatmap))
+    return convert_to_standard_pil(opaque_heatmap), heatmap_on_image
 
 
 # IMAGE PREPARATION FOR PYTORCH
@@ -178,15 +70,11 @@ def preprocess_image(pil_im: PILImage, resize_im=True) -> torch.Tensor:
     if resize_im:
         pil_im.thumbnail((224, 224))
 
-    im_as_arr = convert(pil_im, to_type=np.ndarray)
-    im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
-
+    im_as_arr = convert_image(pil_im, to_type=np.ndarray, shape='3WH', norm='float_1')
     # Normalize the channels
     im_as_arr = (im_as_arr - IMAGENET_MEAN[..., None, None]) / IMAGENET_STD[..., None, None]
     # Convert to float tensor
-    im_as_ten = torch.from_numpy(im_as_arr).float()
-    # Add one more channel to the beginning. Tensor shape = 1,3,W,H
-    im_as_ten.unsqueeze_(0)
+    im_as_ten = convert_image(im_as_arr, to_type=torch.Tensor, shape='13WH').float()
     # Convert to Pytorch variable
     im_as_ten.requires_grad_()
     return im_as_ten
@@ -196,12 +84,10 @@ def recreate_image(im_as_ten: torch.Tensor, to_pil: bool = False) -> Union[np.nd
     """
     Recreates images from a torch tensor, sort of reverse pre-processing
     """
-    recreated_im = im_as_ten.detach().numpy()[0].copy()
+    recreated_im = convert_image(im_as_ten.detach(), to_type=np.ndarray, shape='3WH')
     recreated_im = recreated_im * IMAGENET_STD[..., None, None] + IMAGENET_MEAN[..., None, None]
     recreated_im = np.clip(recreated_im, 0, 1)
-    recreated_im = normalize_numpy_for_pil(recreated_im)
-    recreated_im = recreated_im.transpose((1, 2, 0))
-    return PIL.Image.fromarray(recreated_im) if to_pil else recreated_im
+    return convert_to_standard_pil(recreated_im) if to_pil else convert_for_plot(recreated_im)
 
 
 def get_positive_negative_saliency(gradient: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -211,33 +97,3 @@ def get_positive_negative_saliency(gradient: np.ndarray) -> Tuple[np.ndarray, np
     pos_saliency = np.maximum(0, gradient) / gradient.max()
     neg_saliency = np.maximum(0, -gradient) / -gradient.min()
     return pos_saliency, neg_saliency
-
-
-def show_images(imgs, titles=None, r=1, figsize=(15, 8)):
-    if isinstance(titles, list):
-        assert len(imgs) == len(titles)
-    elif titles is not None:
-        titles = [titles] * len(imgs)
-
-    c = math.ceil(len(imgs) / r)
-    fig = plt.figure(figsize=figsize)
-    for i, img in enumerate(imgs):
-        ax = fig.add_subplot(r, c, i + 1)
-        ax.imshow(format_for_plotting(img))
-        ax.axis('off')
-        if titles is not None:
-            ax.set_title(str(titles[i]))
-    return fig
-
-
-def format_for_plotting(img):
-    if type(img) == np.ndarray and img.ndim == 3:
-        if img.shape[0] == 3:
-            img = img.transpose((1, 2, 0))
-    return img
-
-
-# this method will keep the type of the input, only making conversions when needed
-@converting(to=PILImage, preserve_type=True)
-def resize_image(img: PILImage, width: int, height: int, resample: int = 0):
-    return img.resize((width, height), resample)
