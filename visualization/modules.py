@@ -1,21 +1,22 @@
 import copy
-from typing import List, Tuple, Iterable
+from collections import defaultdict
+from typing import List, Tuple, Iterable, Optional, Any
 
 import torch
 import torch.nn.functional as F
-from pydash.arrays import find_last_index
+from pydash import find_last
 from torch import nn
 from torch import optim
+from torchvision import models
 
-from .utils import gram_matrix, clean_layer, is_instance_of_any
+if __name__ == '__main__':
+    # dirty hack for this to work when running directly
+    from utils import gram_matrix, clean_layer
+else:
+    from .utils import gram_matrix, clean_layer
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
-
-
-
-
-
-#externally exposed – to smoothen out pytorch changes
+# externally exposed – to smoothen out PyTorch changes
 MODULE_NAME_MAP = {
     nn.Conv2d: 'conv',
     nn.ReLU: 'relu',
@@ -31,6 +32,31 @@ def get_module_name(module: nn.Module) -> str:
     if hasattr(clazz, 'name'):
         return clazz.name
     return clazz.__name__
+
+
+# FUNCTIONS TO ENCODE/DECODE LAYER KEYS (tuples) TO INTERNAL KEYS
+# Example: key=('conv', 1) <--> int.key='conv-1'
+
+def key_to_internal(name: str, nth: int) -> str:
+    assert '-' not in name, "The name cannot contain a '-' character."
+    return f'{name}-{nth}'
+
+
+def internal_to_key(ikey: str) -> Tuple[str, int]:
+    parts = ikey.rsplit('-', 1)
+    return parts[0], int(parts[1])
+
+
+def generate_module_keys(modules: Iterable[nn.Module], internal=False) -> Iterable[Tuple[Any, nn.Module]]:
+    name_counts = defaultdict(int)
+
+    def gen_key(m):
+        name = get_module_name(m)
+        nth = name_counts[name]
+        name_counts[name] += 1
+        return key_to_internal(name, nth) if internal else (name, nth)
+
+    return [(gen_key(m), m) for m in modules]
 
 
 class Normalization(nn.Module):
@@ -78,157 +104,129 @@ class StyleLoss(nn.Module):
         return input
 
 
-#implement gradient getter logic
-
-
-"""
-hook_layer(layer_key) -> {
-    self.hooks[layer_key] = h
-    hook
-    
-    def hook_closure(
-}
-"""
-
-"""
-*Register forward for all layers
-*save hooks to dict
-*save outputs to dict 
-"""
-
-class Show: #interpret
-    @staticmethod
-    def gradient(gradients):
-        #convert to greyscale
-        #plt.plot()
-        pass
-    @staticmethod
-    def top_loss():
-        pass
-    @staticmethod
-    def GradCAM(gradients):
-        pass
-
-
-
 class LayeredModule(nn.Module):
-    layers: nn.ModuleList
+    layers: nn.ModuleDict
+    hooked_layer_keys: Optional = None
 
-    def __init__(self, layers):
+    def __init__(self, layers, hooked_layer_keys=None):
         super(LayeredModule, self).__init__()
-        self.layers = layers
+        self.layers = nn.ModuleDict(layers)
+
         self.hooks_forward = {}
         self.hooks_backward = {}
 
         self.layer_outputs = {}
-        self.layer_gradients = {}
+        self.param_gradients = {}
+
+        self.set_hooked_layers(hooked_layer_keys)
+
+    @staticmethod
+    def from_cnn(cnn, normalizer):
+        """
+        Converts a generic CNN into our standardized LayeredModule. The layer ids are inferred automatically from the CNN's layers.
+        :param cnn:
+        :param normalizer:
+        :return:
+        """
+        cnn = copy.deepcopy(cnn)
+        return LayeredModule(generate_module_keys([normalizer] + [clean_layer(layer) for layer in cnn.children()], internal=True))
+
+    # TODO: implement similar static methods for other archs
 
     def set_layer_context(self, layer_key):
-        def forward_hook_callback(self, _input_, output):
+        def forward_hook_callback(_layer_, _input_, output):
             self.layer_outputs[layer_key] = output
+
         return forward_hook_callback
 
-    def hook_layers(self, layer_keys):
-        return None
+    def set_hooked_layers(self, layer_keys):
+        """
+        Allows to specify which layers (by keys) should be hooked. WARNING: it restarts all the hooks states!!!
+        """
+        self.hooked_layer_keys = layer_keys
+        self.hook_forward()
+        self.hook_backward()
 
-    #TODO: hook_all -> hook_specified
-    def hook_all_forward(self):
-        for layer_key, layer in self.layers._modules.items():
-            self.hooks_forward[layer_key] = layer.register_forward_hook(self.set_layer_context(layer_key))
+    def is_hooked_layer(self, layer_key) -> bool:
+        return self.hooked_layer_keys is None or layer_key in self.hooked_layer_keys
 
-    #TODO: all -> specified
-    def hook_all_backward(self):
+    def hook_forward(self):
+        # remove any previously set hooks
+        for hook in self.hooks_forward.values():
+            hook.remove()
+        self.hooks_forward.clear()
+        self.layer_outputs.clear()
+
+        for layer_ikey, layer in self.layers.items():
+            if self.is_hooked_layer(internal_to_key(layer_ikey)):
+                self.hooks_forward[layer_ikey] = layer.register_forward_hook(self.set_layer_context(layer_ikey))
+
+    def hook_backward(self):
+        # remove any previously set hooks
+        for hook in self.hooks_backward.values():
+            hook.remove()
+        self.hooks_backward.clear()
+        self.param_gradients.clear()
+
         def set_param_context(name):
             def hook_fn(grad):
-                self.layer_gradients[name] = grad
+                self.param_gradients[name] = grad
                 return grad
+
             return hook_fn
 
         for name, param in self.layers.named_parameters():
             param.register_hook(set_param_context(name))
 
-    def get_gradients(self, input, target_class):
-        self.gradients = None
+    def get_gradients_for_sample(self, input, target_class):
         # Put model in evaluation mode
-        self.eval()
+        self.layers.eval()
         model_output = self.forward(input)
 
         self.zero_grad()
         num_classes = model_output.size()[-1]
-        one_hot_output = torch.FloatTensor(1 ,num_classes).zero_()
+        one_hot_output = torch.FloatTensor(1, num_classes).zero_()
         one_hot_output[0][target_class] = 1
         # Backward pass
-
-        #wrt
         model_output.backward(gradient=one_hot_output)
         # Convert Pytorch variable to numpy array
         # [0] to get rid of the first channel (1,3,224,224)
 
-        return self.layer_gradients #to numpy?? #numpy()[0]
-
-    @staticmethod
-    def from_cnn(cnn, normalizer):
-        cnn = copy.deepcopy(cnn)
-        layers = nn.ModuleList([normalizer] + [clean_layer(layer) for layer in cnn.children()])
-        return LayeredModule(layers)
-
-    # TODO: implement similar static methods for other archs
+        return self.param_gradients  # to numpy?? #numpy()[0]
 
     def forward(self, x):
-        for layer in self.layers:
-            if layer is not None:
-                x = layer(x)
+        for layer in self.layers.values():
+            x = layer(x)
         return x
-
-    def find_indices(self, name: str) -> List[int]:
-        return [i for i, layer in enumerate(self.layers) if get_module_name(layer) == name]
 
     def get_modules(self, name: str) -> List[nn.Module]:
-        return [layer for layer in self.layers if get_module_name(layer) == name]
+        return [layer for ikey, layer in self.layers.items() if internal_to_key(ikey)[0] == name]
 
     def get_module(self, name: str, nth: int) -> nn.Module:
-        return self.get_modules(name)[nth]
+        return self.layers[key_to_internal(name, nth)]
 
-    # TODO: remove and integrate with forward hooks
-    # def get_output(layer):
-    def evaluate_at_layer(self, x: torch.Tensor, key: Tuple[str, int]):
-        name, nth = key
-        until_idx = self.find_indices(name)[nth]
-        for layer in self.layers[:until_idx + 1]:
-            x = layer(x)
-        return x
+    def get_layer_output(self, layer_key):
+        return self.layer_outputs.get(key_to_internal(*layer_key))
 
+    def insert_after(self, insertion_key: Tuple[str, int], new_key: Tuple[str, int], new_layer: nn.Module):
+        insertion_ikey = key_to_internal(*insertion_key)
+        layers = []
+        for ikey, layer in self.layers.items():
+            layers.append((ikey, layer))
+            if ikey == insertion_ikey:
+                layers.append((key_to_internal(*new_key), new_layer))
+        self.layers = nn.ModuleDict(layers)
 
-    def evaluate_at_layers(self, x: torch.Tensor, keys: Iterable[Tuple[str, int]], compute_all: bool = False):
-        """
-        Allows to collect the activation values (outputs of some network layers) for a given input. Similar to :func:`evaluate_at_layer`
-        but more efficient because it requires only one pass thru the network.
-        :param x: the input tensor that will be fed to the network.
-        :param keys: a list of "keys" ((module name, module nr) tuples) from which we want to fetch the activations, for the given input.
-        :param compute_all: if True, all the layers will be computed, even if not requested. Default=False.
-        :return: a map where the keys are the provided ones, and the values are the collected activation maps (tensors).
-        """
-        all_indices = [self.find_indices(m)[n] for m, n in keys]
-        keys_indices = {idx: key for idx, key in zip(all_indices, keys)}
-
-        values = {}
-        layers = self.layers if compute_all else self.layers[:max(all_indices) + 1]
-        for idx, layer in enumerate(layers):
-            x = layer(x)
-            if idx in keys_indices:
-                values[keys_indices[idx]] = x
-        return values
-
-    def insert_after(self, insertion_key: Tuple[str, int], layer: nn.Module):
-        name, nth = insertion_key
-        idx = self.find_indices(name)[nth]
-        self.layers.insert(idx + 1, layer)
+    def delete_all_after(self, last_key: Tuple[str, int]):
+        last_ikey = key_to_internal(*last_key)
+        layers = []
+        for ikey, layer in self.layers.items():
+            layers.append((ikey, layer))
+            if ikey == last_ikey:
+                break
+        self.layers = nn.ModuleDict(layers)
 
 
-
-
-#inject
-#(Style, (Content, 4))
 class StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
@@ -239,7 +237,7 @@ class StyleTransferModule(LayeredModule):
                  style_target=None,
                  style_layer_keys=None):
         arch = copy.deepcopy(arch)
-        super(StyleTransferModule, self).__init__(arch.layers)
+        super(StyleTransferModule, self).__init__(arch.layers.items())
         self.content_target = content_target
         self.style_target = style_target
         if content_target is not None and content_layer_keys is not None:
@@ -248,18 +246,18 @@ class StyleTransferModule(LayeredModule):
             self._insert_loss_layers(StyleLoss, style_target, style_layer_keys)
 
         # remove the layers after the last loss layer, which are useless
-        last = find_last_index(self.layers, is_instance_of_any([ContentLoss, StyleLoss]))
-        self.layers = self.layers[:last + 1]
+        last = find_last(self.layers.items(), lambda l: isinstance(l[1], (ContentLoss, StyleLoss)))
+        self.delete_all_after(internal_to_key(last[0]))
 
-    def _insert_loss_layers(self, layer_constructor, target, insertion_keys):
-        target_at_layers = self.evaluate_at_layers(target, insertion_keys)
+    def _insert_loss_layers(self, layer_class, target, insertion_keys):
+        # do a forward pass to get the layer outputs
+        self.forward(target)
         for key in insertion_keys:
             # create loss layer
-            loss_layer = layer_constructor(target_at_layers[key].detach())
-            # you could also just do (but it's kinda inefficient :))
-            # loss_layer = layer_constructor(self.evaluate_at_layer(target, key).detach())
+            loss_layer = layer_class(self.get_layer_output(key).detach())
             # insert it after layer at key
-            self.insert_after(key, loss_layer)
+            # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
+            self.insert_after(key, (layer_class.name, key[1]), loss_layer)
 
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, verbose=True):
         optimizer = optimizer_class([input_img.requires_grad_()])
@@ -293,3 +291,16 @@ class StyleTransferModule(LayeredModule):
         input_img.data.clamp_(0, 1)
 
         return input_img
+
+
+if __name__ == '__main__':
+    # just a test for debugging
+    cnn = models.vgg19(pretrained=True).features.eval()
+    cnn_normalization_mean = torch.tensor([0.485, 0.456, 0.406])
+    cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225])
+    arch = LayeredModule.from_cnn(cnn, Normalization(cnn_normalization_mean, cnn_normalization_std))
+    style_injects = [('conv', i) for i in range(5)]
+    content_injects = [('conv', 3)]
+    content_img = torch.zeros((1, 3, 128, 128))
+    style_img = torch.zeros((1, 3, 128, 128))
+    style_module = StyleTransferModule(arch, content_img, content_injects, style_img, style_injects)
