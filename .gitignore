@@ -55,7 +55,7 @@ coverage.xml
 *.log
 local_settings.py
 db.sqlite3
-
+data/faces_cropped
 # Flask stuff:
 instance/
 .webassets-cache
