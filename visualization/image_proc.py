@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import PIL.Image
 import matplotlib.cm
 
