@@ -80,6 +80,36 @@ def _clear_hooks(hooks: dict) -> None:
 
 
 class LayeredModule(nn.Module):
+    """
+    **HOOKS**
+
+    There are several places where you can hook to the network components.
+
+    1. Layers (nn.Module)
+       Forward hooks: they capture the OUTPUT of the module in the forward pass.
+
+       - Handlers: self.hooks_layer_forward
+       - Stored values: self.layer_outputs : a Mapping[str, Tensor], the key is the layer key, the value is the layer's output after the forward pass.
+       Backward hooks: they capture the GRADIENTS of the module in the backward pass.
+
+       - Handlers: self.hooks_layer_backward
+       - Stored values: self.layer_gradients : a Mapping[str, Tuple[Tensor]], the key is the layer key, the value is the layer's INCOMING gradient(s).
+         Note that there can be several gradients, hence a tuple.
+
+    2. Parameters (torch.Tensor)
+       It is possible to hook to the parameter themselves (e.g. weights, biases) when their gradients are computed.
+
+       - Handlers: self.hooks_params
+       - Stored values: self.param_gradients : a Mapping[str, Tensor], the key is the parameter name; the value is the incoming gradient to this
+         tensor.
+
+    3. Layer output tensors (torch.Tensor)
+       We can also hook to the output itself of each layer after the forward pass; to see the incoming gradients to it in the backward pass.
+
+       - Handlers: self.hooks_outputs
+       - Stored values: self.output_gradients : a Mapping[str, Tensor]
+
+    """
     layers: nn.ModuleDict
     hooked_layer_keys: Optional = None
 
@@ -133,7 +163,6 @@ class LayeredModule(nn.Module):
     def create_output_callback(self, layer_key):
         def output_hook_callback(grad):
             self.output_gradients[layer_key] = grad
-            return grad
 
         return output_hook_callback
 
@@ -169,7 +198,6 @@ class LayeredModule(nn.Module):
         def set_param_context(name):
             def hook_fn(grad):
                 self.param_gradients[name] = grad.detach()
-                return grad
 
             return hook_fn
 
