@@ -49,6 +49,7 @@ class StyleTransferModule(LayeredModule):
         super(StyleTransferModule, self).__init__(arch.layers.items())
         self.content_target = content_target
         self.style_target = style_target
+
         if content_target is not None and content_layer_keys is not None:
             self._insert_loss_layers(ContentLoss, content_target, content_layer_keys)
         if style_target is not None and style_layer_keys is not None:
@@ -59,6 +60,7 @@ class StyleTransferModule(LayeredModule):
         self.delete_all_after(last[0])
 
     def _insert_loss_layers(self, layer_class, target, insertion_keys):
+        self.set_hooked_layers(insertion_keys)
         # do a forward pass to get the layer outputs
         self.forward(target)
         for key in insertion_keys:
@@ -68,6 +70,8 @@ class StyleTransferModule(LayeredModule):
             # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
             _, nth = key_to_tuple(key)
             self.insert_after(key, tuple_to_key(layer_class.name, nth), loss_layer)
+        # we don't need to hook to the layers anymore
+        self.set_hooked_layers(None, keep=False)
 
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, verbose=True):
         optimizer = optimizer_class([input_img.requires_grad_()])
