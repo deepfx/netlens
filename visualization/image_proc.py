@@ -127,21 +127,11 @@ def preprocess_image(pil_im: Image, resize_im=True) -> torch.Tensor:
         im_as_var (torch variable): Variable that contains processed float tensor
     """
     # Resize image
-
-    print(f'Original image: {pil_im.size}')
-
     if resize_im:
         pil_im.thumbnail((224, 224))
 
-    print(f'Thumbnailed image: {pil_im.size}')
-
     im_as_arr = np.float32(pil_im)
-
-    print(f'Numpy image: {im_as_arr.shape}')
-
     im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
-
-    print(f'Numpy transposed image: {im_as_arr.shape}')
 
     # Normalize the channels
     im_as_arr = (im_as_arr / 255 - IMAGENET_MEAN[..., None, None]) / IMAGENET_STD[..., None, None]
