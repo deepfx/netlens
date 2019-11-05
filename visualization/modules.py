@@ -1,6 +1,7 @@
 import copy
 from typing import List, Tuple, Optional, Iterable, Callable, Any, Collection
 
+import fastai
 import torch
 import torchvision
 from fastai.layers import Lambda
@@ -9,7 +10,6 @@ from torch import nn, Tensor
 from .hooks import HookDict, TensorHook
 from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
     insert_layer_after, delete_all_layers_after
-
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 # externally exposed – to smoothen out PyTorch changes
@@ -21,6 +21,11 @@ MODULE_NAME_MAP = {
     nn.AdaptiveAvgPool2d: 'avgpool',
     nn.Dropout: 'dropout',
     nn.Linear: 'linear'
+}
+
+NOT_FLATTEN_MODULES = {
+    torchvision.models.resnet.BasicBlock,
+    fastai.layers.AdaptiveConcatPool2d
 }
 
 
@@ -46,14 +51,12 @@ def get_flat_layers(model: nn.Module, prepended_layers=None) -> Iterable[Tuple[s
     return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
 
 
-# TODO
-# TODO if <special module> -> don't flatten
-# TODO don't flatten if belong together
-def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = (torchvision.models.resnet.BasicBlock,)) -> Iterable[Tuple[str, nn.Module]]:
+def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = None) -> Iterable[Tuple[str, nn.Module]]:
     """
     Returns all the sub-modules of the given model as a list of named layers, assuming that the provided model is NESTED. In that case, the names of
     the non-leaf 'parent' modules are prepended to the generated keys.
     """
+    dont_flatten = dont_flatten or NOT_FLATTEN_MODULES
     parents = set(get_parent_name(name) for name, _ in model.named_modules())
     dont_flatten_names = set(name for name, layer in model.named_modules() if type(layer) in dont_flatten)
 
