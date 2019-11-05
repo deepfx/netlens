@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from toolz import curry
 
-from .image_proc import convert
+from pyimgy.core import convert_image
 
 config = {
     "model_input_size": {
@@ -46,7 +46,7 @@ def resize_like_input(input_size, masks, probs):
 
 
 def occlusion(model, input, target_class, window=(30, 30)):
-    input = convert(input, to_type=torch.Tensor)
+    input = convert_image(input, to_type=torch.Tensor)
 
     if len(input.shape) == 4:
         input = input.squeeze(0)
