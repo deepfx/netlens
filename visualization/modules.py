@@ -113,22 +113,22 @@ class LayeredModule(nn.Module):
     layers: nn.ModuleDict
     hooked_layer_keys: Optional = None
 
-    def __init__(self, layers, hooked_layer_keys=None, hook_to_output_gradients=False):
+    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations=False):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
         self.hooks_layer_forward = {}
         self.hooks_layer_backward = {}
-        self.hooks_outputs = {}
+        self.hooks_activations = {}
         self.hooks_params = {}
 
         self.layer_outputs = {}
         self.layer_gradients = {}
-        self.output_gradients = {}
+        self.activation_gradients = {}
         self.param_gradients = {}
 
         self.set_hooked_layers(hooked_layer_keys)
-        self.hook_to_output_gradients = hook_to_output_gradients
+        self.hook_to_activations = hook_to_activations
 
     @staticmethod
     def from_cnn(cnn, prepended_layers=None):
@@ -154,15 +154,15 @@ class LayeredModule(nn.Module):
         def forward_hook_callback(_layer_, _input_, output):
             self.layer_outputs[layer_key] = output
 
-        def backward_hook_callback(_layer_, grad_in, _grad_out_):
+        def backward_hook_callback(_layer_, grad_in, grad_out):
             # TODO: it will just have hardcoded indexes!!!
-            self.layer_gradients[layer_key] = grad_in
+            self.layer_gradients[layer_key] = (grad_in, grad_out)
 
         return forward_hook_callback, backward_hook_callback
 
-    def create_output_callback(self, layer_key):
+    def create_activation_callback(self, layer_key):
         def output_hook_callback(grad):
-            self.output_gradients[layer_key] = grad
+            self.activation_gradients[layer_key] = grad
 
         return output_hook_callback
 
@@ -195,19 +195,19 @@ class LayeredModule(nn.Module):
         # clear stored values
         self.param_gradients.clear()
 
-        def set_param_context(name):
+        def create_parameter_callback(name):
             def hook_fn(grad):
                 self.param_gradients[name] = grad.detach()
 
             return hook_fn
 
         for name, param in self.layers.named_parameters():
-            self.hooks_params[name] = param.register_hook(set_param_context(name))
+            self.hooks_params[name] = param.register_hook(create_parameter_callback(name))
 
     def get_gradients_for_sample(self, input, target_class):
         # Put model in evaluation mode
         self.layers.eval()
-        model_output = self.forward(input)
+        model_output = self.__call__(input)
 
         self.zero_grad()
         one_hot_output = one_hot_tensor(num_classes=model_output.size()[-1], target_class=target_class)
@@ -216,15 +216,17 @@ class LayeredModule(nn.Module):
         return self.layer_gradients
 
     def forward(self, x):
-        if self.hook_to_output_gradients:
-            _clear_hooks(self.hooks_outputs)
-            self.output_gradients.clear()
+        if self.hook_to_activations:
+            _clear_hooks(self.hooks_activations)
+            self.activation_gradients.clear()
+            # here, 'x' has the input, so we can hook to it
+            self.hooks_activations['input'] = x.register_hook(self.create_activation_callback('input'))
 
         for layer_key, layer in self.layers.items():
             x = layer(x)
             # if we enabled hooks to the outputs, add them now
-            if self.hook_to_output_gradients:
-                self.hooks_outputs[layer_key] = x.register_hook(self.create_output_callback(layer_key))
+            if self.hook_to_activations:
+                self.hooks_activations[layer_key] = x.register_hook(self.create_activation_callback(layer_key))
         return x
 
     def get_modules(self, name: str) -> List[nn.Module]:
