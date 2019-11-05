@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 
 
 def gram_matrix(input: torch.Tensor) -> torch.Tensor:
@@ -13,3 +14,11 @@ def gram_matrix(input: torch.Tensor) -> torch.Tensor:
     # we 'normalize' the values of the gram matrix
     # by dividing by the number of element in each feature maps.
     return G.div(a * b * c * d)
+
+
+def clean_layer(layer):
+    return nn.ReLU(inplace=False) if isinstance(layer, nn.ReLU) else layer
+
+
+def find_indices(iterable, predicate):
+    return [i for i, x in enumerate(iterable) if predicate(x)]
