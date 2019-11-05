@@ -1,12 +1,15 @@
 import copy
-from typing import List, Tuple, Optional, Iterable, Callable, Any
+from typing import List, Tuple, Optional, Iterable, Callable, Any, Collection
 
 import torch
+import torchvision
 from fastai.layers import Lambda
 from torch import nn, Tensor
 
 from .hooks import HookDict, TensorHook
-from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, insert_layer_after, delete_all_layers_after
+from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
+    insert_layer_after, delete_all_layers_after
+
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 # externally exposed – to smoothen out PyTorch changes
@@ -43,19 +46,24 @@ def get_flat_layers(model: nn.Module, prepended_layers=None) -> Iterable[Tuple[s
     return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
 
 
-def get_nested_layers(model: nn.Module) -> Iterable[Tuple[str, nn.Module]]:
+# TODO
+# TODO if <special module> -> don't flatten
+# TODO don't flatten if belong together
+def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = (torchvision.models.resnet.BasicBlock,)) -> Iterable[Tuple[str, nn.Module]]:
     """
     Returns all the sub-modules of the given model as a list of named layers, assuming that the provided model is NESTED. In that case, the names of
     the non-leaf 'parent' modules are prepended to the generated keys.
     """
     parents = set(get_parent_name(name) for name, _ in model.named_modules())
+    dont_flatten_names = set(name for name, layer in model.named_modules() if type(layer) in dont_flatten)
 
     def get_prefix(name):
         parent = get_parent_name(name)
         return parent.replace('.', '-') + '-' if len(parent) > 0 else ''
 
     return enumerate_module_keys((get_prefix(name) + get_module_name(layer), clean_layer(layer))
-                                 for name, layer in model.named_modules() if name not in parents)
+                                 for name, layer in model.named_modules()
+                                 if (name not in parents or type(layer) in dont_flatten) and get_parent_name(name) not in dont_flatten_names)
 
 
 class Normalization(nn.Module):
@@ -96,7 +104,8 @@ class LayeredModule(nn.Module):
     layers: nn.ModuleDict
     hooked_layer_keys: Optional = None
 
-    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
+    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations: bool = False,
+                 custom_activation_hook_factory: CustomHookFunc = None):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
@@ -109,7 +118,8 @@ class LayeredModule(nn.Module):
         self.custom_activation_hook_factory = custom_activation_hook_factory
 
     def copy(self):
-        return self.__class__(self.layers.items(), self.hooked_layer_keys, self.hook_to_activations, self.custom_activation_hook_factory)
+        return self.__class__(self.layers.items(), self.hooked_layer_keys, self.hook_to_activations,
+                              self.custom_activation_hook_factory)
 
     @classmethod
     def from_cnn(cls, cnn, prepended_layers=None, *args, **kwargs):
@@ -144,8 +154,9 @@ class LayeredModule(nn.Module):
 
     def hook_layers(self):
         # remove any previously set hook handlers
-        self.hooks_layers = HookDict.from_modules({layer_key: layer for layer_key, layer in self.layers.items() if self.is_hooked_layer(layer_key)},
-                                                  lambda _m, _input, output: output)
+        self.hooks_layers = HookDict.from_modules(
+            {layer_key: layer for layer_key, layer in self.layers.items() if self.is_hooked_layer(layer_key)},
+            lambda _m, _input, output: output)
 
     def hook_parameters(self):
         # remove any previously set hook handlers
