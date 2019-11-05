@@ -1,12 +1,11 @@
 import copy
-from collections import defaultdict
-from typing import List, Tuple, Iterable, Optional, Any
+from typing import List, Tuple, Optional, Iterable
 
 import torch
-from pydash import find_index
+from fastai.layers import Lambda
 from torch import nn
 
-from .utils import clean_layer, tuple_to_key, key_to_tuple
+from .utils import clean_layer, key_to_tuple, get_parent_name, as_list, enumerate_module_keys, insert_layer_after, delete_all_layers_after
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 # externally exposed – to smoothen out PyTorch changes
@@ -14,7 +13,10 @@ MODULE_NAME_MAP = {
     nn.Conv2d: 'conv',
     nn.ReLU: 'relu',
     nn.MaxPool2d: 'pool',
-    nn.BatchNorm2d: 'bn'
+    nn.BatchNorm2d: 'bn',
+    nn.AdaptiveAvgPool2d: 'avgpool',
+    nn.Dropout: 'dropout',
+    nn.Linear: 'linear'
 }
 
 
@@ -27,16 +29,32 @@ def get_module_name(module: nn.Module) -> str:
     return clazz.__name__
 
 
-def generate_module_keys(modules: Iterable[nn.Module], use_tuples=False) -> Iterable[Tuple[Any, nn.Module]]:
-    name_counts = defaultdict(int)
+def get_module_names(modules: Iterable[nn.Module]) -> Iterable[Tuple[str, nn.Module]]:
+    return [(get_module_name(m), m) for m in modules]
 
-    def gen_key(m):
-        name = get_module_name(m)
-        nth = name_counts[name]
-        name_counts[name] += 1
-        return (name, nth) if use_tuples else tuple_to_key(name, nth)
 
-    return [(gen_key(m), m) for m in modules]
+def get_flat_layers(model: nn.Module, prepended_layers=None) -> Iterable[Tuple[str, nn.Module]]:
+    """
+    Returns all the sub-modules of the given model as a list of named layers, assuming that the provided model is FLAT.
+    Optionally pre-prepends some layers at the beginning.
+    """
+    layers = [clean_layer(layer) for layer in model.children()]
+    return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
+
+
+def get_nested_layers(model: nn.Module) -> Iterable[Tuple[str, nn.Module]]:
+    """
+    Returns all the sub-modules of the given model as a list of named layers, assuming that the provided model is NESTED. In that case, the names of
+    the non-leaf 'parent' modules are prepended to the generated keys.
+    """
+    parents = set(get_parent_name(name) for name, _ in model.named_modules())
+
+    def get_prefix(name):
+        parent = get_parent_name(name)
+        return parent.replace('.', '-') + '-' if len(parent) > 0 else ''
+
+    return enumerate_module_keys((get_prefix(name) + get_module_name(layer), clean_layer(layer))
+                                 for name, layer in model.named_modules() if name not in parents)
 
 
 class Normalization(nn.Module):
@@ -65,22 +83,31 @@ class LayeredModule(nn.Module):
 
         self.hooks_forward = {}
         self.hooks_backward = {}
+        self.hooks_params = {}
 
         self.layer_outputs = {}
+        self.layer_gradients = {}
         self.param_gradients = {}
 
         self.set_hooked_layers(hooked_layer_keys)
 
     @staticmethod
-    def from_cnn(cnn, normalizer):
+    def from_cnn(cnn, prepended_layers=None):
         """
         Converts a generic CNN into our standardized LayeredModule. The layer ids are inferred automatically from the CNN's layers.
         :param cnn:
-        :param normalizer:
+        :param prepended_layers:
         :return:
         """
         cnn = copy.deepcopy(cnn)
-        return LayeredModule(generate_module_keys([normalizer] + [clean_layer(layer) for layer in cnn.children()]))
+        return LayeredModule(get_flat_layers(cnn, prepended_layers))
+
+    @staticmethod
+    def from_alexnet(model):
+        layers = get_nested_layers(model)
+        # the Pytorch implementation of AlexNet has a flatten in the forward, we need to insert it in the layers
+        layers = insert_layer_after(layers, 'avgpool-0', 'flatten', Lambda(lambda x: torch.flatten(x, 1)))
+        return LayeredModule(layers)
 
     # TODO: implement similar static methods for other archs
 
@@ -88,46 +115,50 @@ class LayeredModule(nn.Module):
         def forward_hook_callback(_layer_, _input_, output):
             self.layer_outputs[layer_key] = output
 
-        return forward_hook_callback
+        def backward_hook_callback(_layer_, grad_in, _grad_out_):
+            # TODO: it will just have hardcoded indexes!!!
+            self.layer_gradients[layer_key] = grad_in
+
+        return forward_hook_callback, backward_hook_callback
 
     def set_hooked_layers(self, layer_keys):
         """
         Allows to specify which layers (by keys) should be hooked. WARNING: it restarts all the hooks states!!!
         """
         self.hooked_layer_keys = layer_keys
-        self.hook_forward()
-        self.hook_backward()
+        self.hook_layers()
+        self.hook_parameters()
 
     def is_hooked_layer(self, layer_key) -> bool:
         return self.hooked_layer_keys is None or layer_key in self.hooked_layer_keys
 
-    def hook_forward(self):
-        # remove any previously set hooks
-        for hook in self.hooks_forward.values():
-            hook.remove()
-        self.hooks_forward.clear()
-        self.layer_outputs.clear()
+    def hook_layers(self):
+        # remove any previously set hook handlers
+        [hook.remove() for hooks in (self.hooks_forward, self.hooks_backward) for hook in hooks]
+        # clear stored values
+        [v.clear() for v in (self.hooks_forward, self.hooks_backward, self.layer_outputs, self.layer_gradients)]
 
         for layer_key, layer in self.layers.items():
             if self.is_hooked_layer(layer_key):
-                self.hooks_forward[layer_key] = layer.register_forward_hook(self.set_layer_context(layer_key))
+                fwd_cb, bwd_cb = self.set_layer_context(layer_key)
+                self.hooks_forward[layer_key] = layer.register_forward_hook(fwd_cb)
+                self.hooks_backward[layer_key] = layer.register_backward_hook(bwd_cb)
 
-    def hook_backward(self):
-        # remove any previously set hooks
-        for hook in self.hooks_backward.values():
-            hook.remove()
-        self.hooks_backward.clear()
-        self.param_gradients.clear()
+    def hook_parameters(self):
+        # remove any previously set hook handlers
+        [hook.remove() for hook in self.hooks_params]
+        # clear stored values
+        [v.clear() for v in (self.hooks_params, self.param_gradients)]
 
         def set_param_context(name):
             def hook_fn(grad):
-                self.param_gradients[name] = grad
+                self.param_gradients[name] = grad.detach()
                 return grad
 
             return hook_fn
 
         for name, param in self.layers.named_parameters():
-            param.register_hook(set_param_context(name))
+            self.hooks_params[name] = param.register_hook(set_param_context(name))
 
     def get_gradients_for_sample(self, input, target_class):
         # Put model in evaluation mode
@@ -140,10 +171,7 @@ class LayeredModule(nn.Module):
         one_hot_output[0][target_class] = 1
         # Backward pass
         model_output.backward(gradient=one_hot_output)
-        # Convert Pytorch variable to numpy array
-        # [0] to get rid of the first channel (1,3,224,224)
-
-        return self.param_gradients  # to numpy?? #numpy()[0]
+        return self.layer_gradients
 
     def forward(self, x):
         for layer in self.layers.values():
@@ -161,15 +189,8 @@ class LayeredModule(nn.Module):
 
     def insert_after(self, insertion_key: str, new_key: str, new_layer: nn.Module):
         layer_list = list(self.layers.items())
-        idx = find_index(layer_list, lambda l: l[0] == insertion_key)
-        if idx == -1:
-            return
-        layer_list.insert(idx + 1, (new_key, new_layer))
-        self.layers = nn.ModuleDict(layer_list)
+        self.layers = nn.ModuleDict(insert_layer_after(layer_list, insertion_key, new_key, new_layer))
 
-    def delete_all_after(self, last_key: Tuple[str, int]):
+    def delete_all_after(self, last_key: str):
         layer_list = list(self.layers.items())
-        idx = find_index(layer_list, lambda l: l[0] == last_key)
-        if idx == -1:
-            return
-        self.layers = nn.ModuleDict(layer_list[:idx + 1])
+        self.layers = nn.ModuleDict(delete_all_layers_after(layer_list, last_key))
