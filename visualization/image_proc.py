@@ -1,11 +1,12 @@
 import math
-from typing import Tuple
+from functools import wraps
+from typing import Tuple, Union
 
+import PIL.Image
 import matplotlib.cm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from PIL import Image
 from PIL.Image import Image as PILImage
 
 
@@ -16,7 +17,8 @@ def normalize_numpy_for_pil(arr: np.ndarray) -> np.ndarray:
 
 
 IMAGE_CONVERSION_MAP = {
-    (np.ndarray, Image): lambda img: Image.fromarray(normalize_numpy_for_pil(img)),
+    (np.ndarray, PILImage): lambda img: PIL.Image.fromarray(normalize_numpy_for_pil(img)),
+    (PILImage, np.ndarray): lambda img: np.array(img, dtype=np.float32) / 255,
     (np.ndarray, torch.Tensor): torch.from_numpy,
     (torch.Tensor, np.ndarray): lambda t: t.numpy()
 }
@@ -32,9 +34,54 @@ def convert(img, to_type):
     return converter(img)
 
 
+def replace_at_index(tup: tuple, idx: int, value) -> tuple:
+    assert 0 <= idx < len(tup)
+    return tup[:idx] + (value,) + tup[idx + 1:]
+
+
+def converting(to: type, argument: Union[int, str] = 0, return_pos: int = 0, preserve_type: bool = False):
+    """
+    A neat decorator to simplify common conversions in functions.
+
+    :param to: The type to which the indicated argument should be converted BEFORE calling the function.
+    :param argument: The position of the argument to convert. If it's an integer, it is taken from the positional args; if it's a string from the
+                     named kwargs.
+    :param return_pos: If preserve_type=True, the position of the corresponding output that has to be converted back.
+    :param preserve_type: if True, the type of the output is preserved, i.e. it is converted back to the original type of the input, if needed.
+    :return:
+    """
+
+    def convert_decorator(func):
+        @wraps(func)
+        def decorated(*args, **kwargs):
+            input = args[argument] if isinstance(argument, int) else kwargs[argument]
+            original_type = type(input)
+            input_converted = convert(input, to_type=to)
+
+            if isinstance(argument, int):
+                # args is a tuple, so we cannot modify it directly
+                args = replace_at_index(args, argument, input_converted)
+            else:
+                kwargs[argument] = input_converted
+
+            outputs = func(*args, **kwargs)
+
+            if not preserve_type:
+                return outputs
+            elif isinstance(outputs, tuple):
+                return replace_at_index(outputs, return_pos, convert(outputs[return_pos], to_type=original_type))
+            else:
+                return convert(outputs, to_type=original_type)
+
+        return decorated
+
+    return convert_decorator
+
+
 def convert_to_grayscale(im_as_arr: np.ndarray, use_percentile: bool = True) -> np.ndarray:
     """
     Converts a 3-channel image to grayscale
+
     :param im_as_arr: (numpy arr) RGB image with shape (D,W,H)
     :param use_percentile: if True, the 99-percentile will be used instead of the max
     :return: (numpy_arr) Grayscale image with shape (1,W,H)
@@ -53,9 +100,10 @@ def normalize_to_range(arr: np.ndarray, a_min=None, a_max=None, clip: bool = Fal
     return np.clip(norm_arr, 0, 1) if clip else norm_arr
 
 
-def apply_colormap_on_image(org_im: Image, activation: np.ndarray, colormap_name: str) -> Tuple[PILImage, PILImage]:
+def apply_colormap_on_image(org_im: PILImage, activation: np.ndarray, colormap_name: str) -> Tuple[PILImage, PILImage]:
     """
     Applies a heat map over the image.
+
     :param org_im: (PIL img) Original image
     :param activation: (numpy arr) Activation map (grayscale) 0-255
     :param colormap_name: name of the colormap
@@ -69,8 +117,8 @@ def apply_colormap_on_image(org_im: Image, activation: np.ndarray, colormap_name
     heatmap[:, :, 3] = 0.4
 
     # Apply heatmap on image
-    heatmap_on_image = Image.alpha_composite(org_im.convert('RGBA'), convert(heatmap, to_type=Image))
-    return convert(opaque_heatmap, to_type=Image), heatmap_on_image
+    heatmap_on_image = PIL.Image.alpha_composite(org_im.convert('RGBA'), convert(heatmap, to_type=PILImage))
+    return convert(opaque_heatmap, to_type=PILImage), heatmap_on_image
 
 
 def format_np_output(np_arr: np.ndarray) -> np.ndarray:
@@ -105,7 +153,7 @@ def save_image(im, path):
     """
     if isinstance(im, (np.ndarray, np.generic)):
         im = format_np_output(im)
-        im = Image.fromarray(im)
+        im = PIL.Image.fromarray(im)
     im.save(path)
 
 
@@ -116,7 +164,7 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
 
 
-def preprocess_image(pil_im: Image, resize_im=True) -> torch.Tensor:
+def preprocess_image(pil_im: PILImage, resize_im=True) -> torch.Tensor:
     """
         Processes image for CNNs
 
@@ -130,11 +178,11 @@ def preprocess_image(pil_im: Image, resize_im=True) -> torch.Tensor:
     if resize_im:
         pil_im.thumbnail((224, 224))
 
-    im_as_arr = np.float32(pil_im)
+    im_as_arr = convert(pil_im, to_type=np.ndarray)
     im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
 
     # Normalize the channels
-    im_as_arr = (im_as_arr / 255 - IMAGENET_MEAN[..., None, None]) / IMAGENET_STD[..., None, None]
+    im_as_arr = (im_as_arr - IMAGENET_MEAN[..., None, None]) / IMAGENET_STD[..., None, None]
     # Convert to float tensor
     im_as_ten = torch.from_numpy(im_as_arr).float()
     # Add one more channel to the beginning. Tensor shape = 1,3,W,H
@@ -144,15 +192,16 @@ def preprocess_image(pil_im: Image, resize_im=True) -> torch.Tensor:
     return im_as_ten
 
 
-def recreate_image(im_as_ten: torch.Tensor) -> np.ndarray:
+def recreate_image(im_as_ten: torch.Tensor, to_pil: bool = False) -> Union[np.ndarray, PILImage]:
     """
     Recreates images from a torch tensor, sort of reverse pre-processing
     """
-    recreated_im = im_as_ten.numpy()[0].copy()
+    recreated_im = im_as_ten.detach().numpy()[0].copy()
     recreated_im = recreated_im * IMAGENET_STD[..., None, None] + IMAGENET_MEAN[..., None, None]
     recreated_im = np.clip(recreated_im, 0, 1)
     recreated_im = normalize_numpy_for_pil(recreated_im)
-    return recreated_im.transpose((1, 2, 0))
+    recreated_im = recreated_im.transpose((1, 2, 0))
+    return PIL.Image.fromarray(recreated_im) if to_pil else recreated_im
 
 
 def get_positive_negative_saliency(gradient: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -162,27 +211,6 @@ def get_positive_negative_saliency(gradient: np.ndarray) -> Tuple[np.ndarray, np
     pos_saliency = np.maximum(0, gradient) / gradient.max()
     neg_saliency = np.maximum(0, -gradient) / -gradient.min()
     return pos_saliency, neg_saliency
-
-
-def get_example_data(example_index: int, img_path) -> Tuple[PILImage, str, int]:
-    """
-    :param example_index:
-    :param img_path:
-    :return:
-        original_image (numpy arr): Original image read from the file
-        img_name (str)
-        target_class (int): Target class for the image
-    """
-    # Pick one of the examples
-    example_list = (('snake.jpg', 56),
-                    ('cat_dog.png', 243),
-                    ('spider.png', 72),
-                    ('pelican.jpg', 144))
-    img_name = example_list[example_index][0]
-    target_class = example_list[example_index][1]
-    # Read image
-    original_image = Image.open(img_path + img_name).convert('RGB')
-    return original_image, img_name, target_class
 
 
 def show_images(imgs, titles=None, r=1, figsize=(15, 8)):
@@ -207,3 +235,9 @@ def format_for_plotting(img):
         if img.shape[0] == 3:
             img = img.transpose((1, 2, 0))
     return img
+
+
+# this method will keep the type of the input, only making conversions when needed
+@converting(to=PILImage, preserve_type=True)
+def resize_image(img: PILImage, width: int, height: int, resample: int = 0):
+    return img.resize((width, height), resample)
