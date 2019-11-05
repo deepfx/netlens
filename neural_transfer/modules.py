@@ -3,15 +3,15 @@ from typing import Optional, List, Tuple, Iterable
 
 import torch
 import torch.nn.functional as F
-from torch import nn
 from pydash.arrays import find_last_index
+from torch import nn
 from torch import optim
-from .utils import gram_matrix, clean_layer
+
+from .utils import gram_matrix, clean_layer, is_instance_of_any
 
 
 class Normalization(nn.Module):
     def __init__(self, mean, std):
-        
         super(Normalization, self).__init__()
         # .view the mean and std to make them [C x 1 x 1] so that they can
         # directly work with image Tensor of shape [B x C x H x W].
@@ -82,6 +82,9 @@ class LayeredModule(nn.Module):
     def get_modules(self, module: type) -> List[nn.Module]:
         return [layer for layer in self.layers if isinstance(layer, module)]
 
+    def get_module(self, module: type, nth: int) -> nn.Module:
+        return self.get_modules(module)[nth]
+
     def evaluate_at_layer(self, x: torch.Tensor, key: Tuple[type, int]):
         module, nth = key
         until_idx = self.find_indices(module)[nth]
@@ -95,6 +98,7 @@ class LayeredModule(nn.Module):
         keys_indices = {idx: key for idx, key in zip(all_indices, keys)}
 
         values = {}
+        x = self.preprocessor(x)
         for idx, layer in enumerate(self.layers[:max(all_indices) + 1]):
             x = layer(x)
             if idx in keys_indices:
@@ -104,36 +108,30 @@ class LayeredModule(nn.Module):
     def insert_after(self, insertion_key: Tuple[type, int], layer: nn.Module):
         module, nth = insertion_key
         idx = self.find_indices(module)[nth]
-        self.layers.insert(idx+1, layer)
+        self.layers.insert(idx + 1, layer)
 
 
 class StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
-<<<<<<< HEAD
 
     def __init__(self, arch: LayeredModule,
-=======
-            
-    def __init__(self, base: LayeredModule,
->>>>>>> dbba94965756d59ae93c7d6bbea7eff0387a5b9e
                  content_target=None,
                  content_layer_keys=None,
                  style_target=None,
                  style_layer_keys=None):
         arch = copy.deepcopy(arch)
-        super(StyleTransferModule, self).__init__(arch.layers, arch.preprocessor, arch.postprocessor)
+        super(StyleTransferModule, self).__init__(arch.layers, arch.preprocessor, None)
         self.content_target = content_target
         self.style_target = style_target
         if content_target is not None and content_layer_keys is not None:
             self._insert_loss_layers(ContentLoss, content_target, content_layer_keys)
         if style_target is not None and style_layer_keys is not None:
             self._insert_loss_layers(StyleLoss, style_target, style_layer_keys)
-        
-        
-        last = find_last_index(self.layers, lambda layer: isinstance(layer, StyleLoss) or isinstance(layer, ContentLoss))
-        self.layers = self.layers[:last+1]
-                             
+
+        # remove the layers after the last loss layer, which are useless
+        last = find_last_index(self.layers, is_instance_of_any([ContentLoss, StyleLoss]))
+        self.layers = self.layers[:last + 1]
 
     def _insert_loss_layers(self, layer_constructor, target, insertion_keys):
         target_at_layers = self.evaluate_at_layers(target, insertion_keys)
@@ -147,10 +145,11 @@ class StyleTransferModule(LayeredModule):
 
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, verbose=True):
         optimizer = optimizer_class([input_img.requires_grad_()])
-        
-        print("optimizing>....")
-        
-        
+
+        style_losses = self.get_modules(StyleLoss)
+        content_losses = self.get_modules(ContentLoss)
+
+        print("Optimizing...")
         run = [0]
         while run[0] <= num_steps:
             def closure():
@@ -159,11 +158,11 @@ class StyleTransferModule(LayeredModule):
 
                 optimizer.zero_grad()
                 self.forward(input_img)
-                style_score = style_weight * sum(sl.loss for sl in self.get_modules(StyleLoss))
-                content_score = content_weight * sum(cl.loss for cl in self.get_modules(ContentLoss))
+                style_score = style_weight * sum(sl.loss for sl in style_losses)
+                content_score = content_weight * sum(cl.loss for cl in content_losses)
                 loss = style_score + content_score
                 loss.backward()
-                
+
                 run[0] += 1
                 if verbose and run[0] % 50 == 0:
                     print("run {}:".format(run))
