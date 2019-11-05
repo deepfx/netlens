@@ -71,3 +71,14 @@ def insert_layer_after(layer_list, insertion_key: str, new_key: str, new_layer: 
 def delete_all_layers_after(layer_list, last_key: str):
     idx = find_index(layer_list, lambda l: l[0] == last_key)
     return layer_list[:idx + 1] if idx >= 0 else layer_list
+
+
+def make_set(vals):
+    return set(vals) if isinstance(vals, (set, list, tuple)) else set() if vals is None else {vals}
+
+
+def update_set(a_set: set, vals, keep: bool = True):
+    if not keep:
+        a_set.clear()
+    a_set.update(make_set(vals))
+    return a_set

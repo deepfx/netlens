@@ -1,5 +1,5 @@
 import copy
-from typing import List, Tuple, Optional, Iterable, Callable, Any, Collection
+from typing import List, Tuple, Iterable, Callable, Any, Collection
 
 import fastai
 import torch
@@ -9,7 +9,7 @@ from torch import nn, Tensor
 
 from .hooks import HookDict, TensorHook
 from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
-    insert_layer_after, delete_all_layers_after
+    insert_layer_after, delete_all_layers_after, update_set
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 # externally exposed – to smoothen out PyTorch changes
@@ -105,10 +105,12 @@ class LayeredModule(nn.Module):
 
     """
     layers: nn.ModuleDict
-    hooked_layer_keys: Optional = None
+    hooked_layer_keys = set()
+    hooked_param_layer_keys = set()
+    hooked_activation_keys = set()
 
-    def __init__(self, layers, hooked_layer_keys=None, hook_to_activations: bool = False,
-                 custom_activation_hook_factory: CustomHookFunc = None):
+    def __init__(self, layers, hooked_layer_keys=None, hooked_activation_keys=None, hooked_param_layer_keys=None,
+                 hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
 
@@ -117,12 +119,15 @@ class LayeredModule(nn.Module):
         self.hooks_params = None
 
         self.set_hooked_layers(hooked_layer_keys)
+        self.set_hooked_params(hooked_param_layer_keys)
+        self.set_hooked_activations(hooked_activation_keys)
+
         self.hook_to_activations = hook_to_activations
         self.custom_activation_hook_factory = custom_activation_hook_factory
 
     def copy(self):
-        return self.__class__(self.layers.items(), self.hooked_layer_keys, self.hook_to_activations,
-                              self.custom_activation_hook_factory)
+        return self.__class__(self.layers.items(), self.hooked_layer_keys, self.hooked_activation_keys, self.hooked_param_layer_keys,
+                              self.hook_to_activations, self.custom_activation_hook_factory)
 
     @classmethod
     def from_cnn(cls, cnn, prepended_layers=None, *args, **kwargs):
@@ -144,26 +149,31 @@ class LayeredModule(nn.Module):
 
     # TODO: implement similar static methods for other archs
 
-    def set_hooked_layers(self, layer_keys):
+    def set_hooked_layers(self, layer_keys, keep: bool = True):
         """
         Allows to specify which layers (by keys) should be hooked. WARNING: it restarts all the hooks states!!!
         """
-        self.hooked_layer_keys = layer_keys
+        update_set(self.hooked_layer_keys, layer_keys, keep)
         self.hook_layers()
+
+    def set_hooked_params(self, layer_keys, keep: bool = True):
+        update_set(self.hooked_param_layer_keys, layer_keys, keep)
         self.hook_parameters()
 
-    def is_hooked_layer(self, layer_key) -> bool:
-        return self.hooked_layer_keys is None or layer_key in self.hooked_layer_keys
+    def set_hooked_activations(self, layer_keys, keep: bool = True):
+        update_set(self.hooked_activation_keys, layer_keys, keep)
 
     def hook_layers(self):
         # remove any previously set hook handlers
         self.hooks_layers = HookDict.from_modules(
-            {layer_key: layer for layer_key, layer in self.layers.items() if self.is_hooked_layer(layer_key)},
+            {layer_key: layer for layer_key, layer in self.layers.items() if layer_key in self.hooked_layer_keys},
             lambda _m, _input, output: output)
 
     def hook_parameters(self):
         # remove any previously set hook handlers
-        self.hooks_params = HookDict.from_tensors(dict(self.layers.named_parameters()), lambda grad: grad)
+        self.hooks_params = HookDict.from_tensors(
+            {param_key: param for param_key, param in self.layers.named_parameters() if get_parent_name(param_key) in self.hooked_param_layer_keys},
+            lambda grad: grad)
 
     def _add_activation_hook(self, key: str, x: Tensor):
         _hook_func = None
@@ -182,7 +192,7 @@ class LayeredModule(nn.Module):
         for layer_key, layer in self.layers.items():
             x = layer(x)  # all you need from external
             # if we enabled hooks to the outputs, add them now
-            if self.hook_to_activations:
+            if self.hook_to_activations and layer_key in self.hooked_activation_keys:
                 self._add_activation_hook(layer_key, x)
         return x
 
