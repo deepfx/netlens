@@ -20,6 +20,11 @@ class NetLens:
         self.model.hook_to_activations = True
 
         if guided:
+            # We have to make sure that the outputs of the relus are stored
+            relu_keys = set(key for key in self.model.layers.keys() if get_name_from_key(key) == 'relu')
+            self.model.set_hooked_layers(relu_keys)
+            self.model.set_hooked_activations(relu_keys)
+
             # This is a bit tricky... we have to give the layered module a "factory", i.e. a function that creates hook functions;
             # it is a closure that has access to the whole context of the layered module (e.g. for seeing the stored layer outputs)
             def guided_relus_hook_factory(module: LayeredModule, key: str):
@@ -106,6 +111,8 @@ class NetLens:
 
     def generate_cam(self, target_layer: str, interpolate: bool = True) -> Tensor:
         self._prepare_model()
+        self.model.set_hooked_layers(target_layer)
+        self.model.set_hooked_activations(target_layer)
 
         # Full forward and backward pass
         self._process_input()
