@@ -4,6 +4,7 @@ import numpy as np
 
 # TILING
 
+
 def get_tiles_positions(W, H, w, h, step_x=None, step_y=None):
     # if steps are not given, just the tile size
     step_x = step_x or w
