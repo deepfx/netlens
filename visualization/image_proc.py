@@ -78,12 +78,13 @@ def preprocess_image(pil_im: PILImage, resize_im=True) -> torch.Tensor:
     return im_as_ten
 
 
-def recreate_image(im_as_ten: torch.Tensor, to_pil: bool = False) -> Union[np.ndarray, PILImage]:
+def recreate_image(im_as_ten: torch.Tensor, denormalize: bool = True, to_pil: bool = False) -> Union[np.ndarray, PILImage]:
     """
     Recreates images from a torch tensor, sort of reverse pre-processing
     """
     recreated_im = convert_image(im_as_ten.detach(), to_type=np.ndarray, shape='3WH')
-    # recreated_im = recreated_im * IMAGENET_STD[..., None, None] + IMAGENET_MEAN[..., None, None]
+    if denormalize:
+        recreated_im = recreated_im * IMAGENET_STD[..., None, None] + IMAGENET_MEAN[..., None, None]
     recreated_im = np.clip(recreated_im, 0, 1)
     return convert_to_standard_pil(recreated_im) if to_pil else convert_for_plot(recreated_im)
 
