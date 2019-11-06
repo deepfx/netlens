@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Mapping
 
 from torch import Tensor
@@ -11,8 +12,10 @@ from visualization.utils import get_name_from_key
 
 class NetLens:
 
-    def __init__(self, model: LayeredModule, input_image: Tensor, target_class: int = None):
+    def __init__(self, model: LayeredModule, input_image: Tensor, target_class: int = None, denormalize: bool = True):
         self.original_model, self.input_image, self.target_class = model, input_image, target_class
+        # partial for the reconstruction of the original image from the input
+        self.original_image = partial(recreate_image, self.input_image, denormalize)
         self.model = None
 
     def _prepare_model(self, guided: bool = False):
@@ -64,7 +67,7 @@ class NetLens:
         grads = convert_image(grads, to_type=np.ndarray, shape='CWH')
         grads_color = normalize_to_range(grads)
         grads_gray = convert_to_grayscale(grads)
-        show_images([recreate_image(self.input_image), grads_color, grads_gray], ['Original image', f'{name} Color', f'{name} Grayscale'])
+        show_images([self.original_image(), grads_color, grads_gray], ['Original image', f'{name} Color', f'{name} Grayscale'])
 
     def show_gradient_backprop(self, guided: bool = False):
         # Generate gradients
@@ -135,7 +138,7 @@ class NetLens:
 
     def show_gradcam(self, *args, **kwargs):
         cam = self.generate_cam(*args, **kwargs)
-        original_image = recreate_image(self.input_image, to_pil=True)
+        original_image = self.original_image(to_pil=True)
         heatmap, heatmap_on_image = apply_colormap_on_image(original_image, convert_image(cam, to_type=np.ndarray), 'hsv')
         show_images([heatmap, heatmap_on_image, cam], ['CAM Heatmap', 'CAM Heatmap on image', 'CAM Grayscale'])
 
