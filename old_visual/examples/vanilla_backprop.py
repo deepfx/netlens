@@ -16,7 +16,7 @@ if __name__ == '__main__':
     model = LayeredModule.from_alexnet(pretrained_model)
     model.hook_to_activations = True
     # Generate gradients
-    gradients = model.get_gradients_for_sample(prep_img, target_class)
+    gradients = model.get_input_gradient(prep_img, target_class)
 
     # TEST: here we confirm that the values captured by the nn.Module backward hook can be obtained by different means
     '''grad_in, grad_out = model.layer_gradients['features-conv-0']
