@@ -51,7 +51,7 @@ if __name__ == '__main__':
     (original_image, prep_img, target_class, file_name_to_export, pretrained_model) = get_example_params(target_example)
     # Grad cam
     # grad_cam = GradCam(pretrained_model, target_layer=11)
-    model = LayeredModule.from_alexnet(pretrained_model)
+    model = LayeredModule.from_nested_cnn(pretrained_model)
     model.hook_to_activations = True
     # Generate cam mask
     cam = generate_cam(model, 'features-relu-4', prep_img, target_class)
