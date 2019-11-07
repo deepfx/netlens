@@ -5,6 +5,7 @@ import fastai
 import torch
 import torchvision
 from fastai.layers import Lambda
+from pydash import find_index
 from torch import nn, Tensor
 
 from .hooks import HookDict, TensorHook
@@ -25,6 +26,7 @@ MODULE_NAME_MAP = {
 
 NOT_FLATTEN_MODULES = {
     torchvision.models.resnet.BasicBlock,
+    torchvision.models.resnet.Bottleneck,
     fastai.layers.AdaptiveConcatPool2d
 }
 
@@ -66,7 +68,8 @@ def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = None) -
 
     return enumerate_module_keys((get_prefix(name) + get_module_name(layer), clean_layer(layer))
                                  for name, layer in model.named_modules()
-                                 if (name not in parents or type(layer) in dont_flatten) and get_parent_name(name) not in dont_flatten_names)
+                                 if (name not in parents or type(layer) in dont_flatten)
+                                 and not any(name.startswith(p + '.') for p in dont_flatten_names))
 
 
 class Normalization(nn.Module):
@@ -141,10 +144,12 @@ class LayeredModule(nn.Module):
         return cls(get_flat_layers(cnn, prepended_layers), *args, **kwargs)
 
     @classmethod
-    def from_alexnet(cls, model, *args, **kwargs):
+    def from_nested_cnn(cls, model, *args, **kwargs):
         layers = get_nested_layers(model)
-        # the Pytorch implementation of AlexNet has a flatten in the forward, we need to insert it in the layers
-        layers = insert_layer_after(layers, 'avgpool-0', 'flatten', Lambda(lambda x: torch.flatten(x, 1)))
+        # we saw that the flattening is always before the first Linear layer
+        idx = find_index(layers, lambda l: get_name_from_key(l[0]) == 'linear')
+        if idx >= 0:
+            layers.insert(idx, ('flatten', Lambda(lambda x: torch.flatten(x, 1))))
         return cls(layers, *args, **kwargs)
 
     # TODO: implement similar static methods for other archs
@@ -209,9 +214,6 @@ class LayeredModule(nn.Module):
 
     def get_module(self, layer_key: str) -> nn.Module:
         return self.layers[layer_key]
-
-    def get_layer_output(self, layer_key: str):
-        return self.layer_outputs.get(layer_key)
 
     def insert_after(self, insertion_key: str, new_key: str, new_layer: nn.Module):
         layer_list = list(self.layers.items())

@@ -13,7 +13,7 @@ if __name__ == '__main__':
     target_example = 1  # Snake
     (_, prep_img, target_class, file_name_to_export, pretrained_model) = get_example_params(target_example)
     # Vanilla backprop
-    model = LayeredModule.from_alexnet(pretrained_model)
+    model = LayeredModule.from_nested_cnn(pretrained_model)
     model.hook_to_activations = True
     # Generate gradients
     gradients = model.get_input_gradient(prep_img, target_class)
