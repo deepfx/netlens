@@ -1,5 +1,5 @@
 import copy
-from typing import List, Tuple, Iterable, Callable, Any, Collection
+from typing import List, Tuple, Iterable, Callable, Any, Collection, Optional
 
 import fastai
 import torch
@@ -183,7 +183,7 @@ class LayeredModule(nn.Module):
             _hook_func = lambda grad: grad
         self.hooks_activations[key] = TensorHook(x, _hook_func)
 
-    def forward(self, x):
+    def forward(self, x, until_layer: Optional[str] = None):
         if self.hook_to_activations:
             self.hooks_activations = HookDict()
             # here, 'x' has the input, so we can hook to it
@@ -194,7 +194,15 @@ class LayeredModule(nn.Module):
             # if we enabled hooks to the outputs, add them now
             if self.hook_to_activations and layer_key in self.hooked_activation_keys:
                 self._add_activation_hook(layer_key, x)
+            if layer_key == until_layer:
+                break
         return x
+
+    def get_layer_output(self, key: str) -> Tensor:
+        return self.hooks_layers.get_stored(key)
+
+    def get_activation_gradient(self, key: str) -> Tensor:
+        return self.hooks_activations.get_stored(key)
 
     def get_modules(self, name: str) -> List[nn.Module]:
         return [layer for key, layer in self.layers.items() if get_name_from_key(key) == name]
