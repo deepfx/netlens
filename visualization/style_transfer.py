@@ -37,6 +37,12 @@ class StyleLoss(nn.Module):
         return input
 
 
+def total_variation_loss(input):
+    x_diff = input[:, :, 1:, :] - input[:, :, :-1, :]
+    y_diff = input[:, :, :, 1:] - input[:, :, :, :-1]
+    return torch.sum(torch.abs(x_diff)) + torch.sum(torch.abs(y_diff))
+
+
 class StyleTransferModule(LayeredModule):
     content_target: torch.Tensor
     style_target: torch.Tensor
@@ -73,7 +79,8 @@ class StyleTransferModule(LayeredModule):
         # we don't need to hook to the layers anymore
         self.set_hooked_layers(None, keep=False)
 
-    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, verbose=True):
+    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3,
+                           verbose=True):
         optimizer = optimizer_class([input_img.requires_grad_()])
 
         style_losses = self.get_modules(StyleLoss.name)
@@ -90,7 +97,8 @@ class StyleTransferModule(LayeredModule):
                 self.forward(input_img)
                 style_score = style_weight * sum(sl.loss for sl in style_losses)
                 content_score = content_weight * sum(cl.loss for cl in content_losses)
-                loss = style_score + content_score
+                tv_score = tv_weight * total_variation_loss(input_img)
+                loss = style_score + content_score + tv_score
                 loss.backward()
 
                 run[0] += 1
