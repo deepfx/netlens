@@ -81,7 +81,9 @@ class StyleTransferModule(LayeredModule):
 
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3,
                            verbose=True):
-        optimizer = optimizer_class([input_img.requires_grad_()])
+        
+        input_img = input_img.clone().detach().requires_grad_()
+        optimizer = optimizer_class([input_img])
 
         style_losses = self.get_modules(StyleLoss.name)
         content_losses = self.get_modules(ContentLoss.name)
