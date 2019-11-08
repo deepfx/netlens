@@ -58,10 +58,10 @@ class NetLens:
         model_output.backward(gradient=one_hot_output)
         return model_output
 
-    def get_gradients_for_sample(self, guided: bool = False) -> Mapping[str, Tensor]:
+    def get_input_gradient(self, guided: bool = False) -> Mapping[str, Tensor]:
         self._prepare_model(guided)
         self._process_input()
-        return self.model.hooks_activations.stored
+        return self.model.get_activation_gradient('input')
 
     def _show_gradient_images(self, grads, name: str):
         grads = convert_image(grads, to_type=np.ndarray, shape='CWH')
@@ -71,7 +71,7 @@ class NetLens:
 
     def show_gradient_backprop(self, guided: bool = False):
         # Generate gradients
-        input_grads = self.get_gradients_for_sample(guided=guided)['input']
+        input_grads = self.get_input_gradient(guided=guided)
 
         self._show_gradient_images(input_grads, 'Guided Backprop' if guided else 'Backprop')
         if guided:
@@ -102,15 +102,33 @@ class NetLens:
             noisy_img = self.input_image + noise
             # Calculate gradients
             self._process_input(noisy_img)
-            input_grads = self.model.hooks_activations.get_stored('input')
+            input_grads = self.model.get_activation_gradient('input')
             # Add gradients to smooth_grad
-            smooth_grad = smooth_grad + input_grads
+            smooth_grad += input_grads
         # Average it out
         smooth_grad = smooth_grad / param_n
         return smooth_grad
 
     def show_smooth_gradient(self, *args, **kwargs):
         self._show_gradient_images(self.generate_smooth_gradient(*args, **kwargs), 'Smooth Backprop')
+
+    def generate_integrated_gradient(self, guided: bool = False, steps: int = 100) -> Tensor:
+        # Prepare model only once
+        self._prepare_model(guided)
+
+        # Generate an empty image/matrix
+        integrated_grads = torch.zeros_like(self.input_image)
+
+        for step in np.linspace(0, 1, steps):
+            xbar_image = self.input_image * step
+            self._process_input(xbar_image)
+            input_grads = self.model.get_activation_gradient('input')
+            integrated_grads += input_grads / steps
+
+        return integrated_grads
+
+    def show_integrated_gradient(self, *args, **kwargs):
+        self._show_gradient_images(self.generate_integrated_gradient(*args, **kwargs), 'Integrated Gradients')
 
     def generate_cam(self, target_layer: str, interpolate: bool = True) -> Tensor:
         self._prepare_model()
@@ -121,9 +139,9 @@ class NetLens:
         self._process_input()
 
         # conv_output is the output of convolutions at specified layer
-        conv_output = self.model.hooks_layers.get_stored(target_layer)
+        conv_output = self.model.get_layer_output(target_layer)
         # Get hooked gradients
-        guided_gradients = self.model.hooks_activations.get_stored(target_layer).squeeze(0)
+        guided_gradients = self.model.get_activation_gradient(target_layer).squeeze(0)
         # Get convolution outputs
         target = conv_output.squeeze(0)
 
@@ -136,19 +154,32 @@ class NetLens:
         height, width = self.input_image.shape[2:]
         return resize_as_torch(cam, width, height, mode='bilinear' if interpolate else 'nearest')
 
-    def show_gradcam(self, *args, **kwargs):
-        cam = self.generate_cam(*args, **kwargs)
+    def show_gradcam(self, target_layer: str, interpolate: bool = True):
+        cam = self.generate_cam(target_layer, interpolate)
         original_image = self.original_image(to_pil=True)
         heatmap, heatmap_on_image = apply_colormap_on_image(original_image, convert_image(cam, to_type=np.ndarray), 'hsv')
-        show_images([heatmap, heatmap_on_image, cam], ['CAM Heatmap', 'CAM Heatmap on image', 'CAM Grayscale'])
+        show_images([heatmap, heatmap_on_image, cam], [f'CAM Heatmap for {target_layer}', 'CAM Heatmap on image', 'CAM Grayscale'])
 
     def generate_guided_gradcam(self, *args, **kwargs) -> Tensor:
         """
         Guided grad cam is just the point-wise multiplication of cam mask and guided backprop mask
         """
         cam = self.generate_cam(*args, **kwargs)
-        guided_backprop_grads = self.get_gradients_for_sample(guided=True)['input']
+        guided_backprop_grads = self.get_input_gradient(guided=True)
         return cam * guided_backprop_grads
 
     def show_guided_gradcam(self, *args, **kwargs):
         self._show_gradient_images(self.generate_guided_gradcam(*args, **kwargs), 'Guided GradCAM')
+
+    def get_input_gradient_for_layer_activation(self, target_layer: str, target_channel: int, guided: bool = False) -> Tensor:
+        self._prepare_model(guided)
+
+        layer_output = self.model.forward(self.input_image, until_layer=target_layer).squeeze(0)
+        layer_ch_output = torch.sum(torch.abs(layer_output[target_channel, :, :]))
+        layer_ch_output.backward()
+
+        return self.model.get_activation_gradient('input')
+
+    def show_input_gradient_for_layer_activation(self, target_layer: str, target_channel: int, guided: bool = False):
+        self._show_gradient_images(self.get_input_gradient_for_layer_activation(target_layer, target_channel, guided),
+                                   ('Guided' if guided else 'Vanilla') + f' gradient for ({target_layer}, {target_channel})')
