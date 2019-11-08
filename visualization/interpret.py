@@ -158,7 +158,7 @@ class NetLens:
         cam = self.generate_cam(target_layer, interpolate)
         original_image = self.original_image(to_pil=True)
         heatmap, heatmap_on_image = apply_colormap_on_image(original_image, convert_image(cam, to_type=np.ndarray), 'hsv')
-        show_images([heatmap, heatmap_on_image, cam], [f'CAM Heatmap for layer {target_layer}', 'CAM Heatmap on image', 'CAM Grayscale'])
+        show_images([heatmap, heatmap_on_image, cam], [f'CAM Heatmap for {target_layer}', 'CAM Heatmap on image', 'CAM Grayscale'])
 
     def generate_guided_gradcam(self, *args, **kwargs) -> Tensor:
         """
