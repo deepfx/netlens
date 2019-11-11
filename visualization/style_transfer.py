@@ -52,7 +52,7 @@ class StyleTransferModule(LayeredModule):
                  content_layer_keys=None,
                  style_target=None,
                  style_layer_keys=None):
-        super(StyleTransferModule, self).__init__(arch.layers.items())
+        super(StyleTransferModule, self).__init__(arch.layers.items(), arch.arch_name)
         self.content_target = content_target
         self.style_target = style_target
 
@@ -81,7 +81,7 @@ class StyleTransferModule(LayeredModule):
 
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3,
                            verbose=True):
-        
+
         input_img = input_img.clone().detach().requires_grad_()
         optimizer = optimizer_class([input_img])
 

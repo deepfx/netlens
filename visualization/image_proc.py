@@ -1,6 +1,8 @@
 import PIL.Image
 import matplotlib.cm
+import torchvision.transforms as T
 
+import visualization.transforms as T2
 from pyimgy.optional.torch import *
 
 
@@ -54,28 +56,21 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
 
 
-def preprocess_image(pil_im: PILImage, resize_im=True) -> torch.Tensor:
-    """
-        Processes image for CNNs
+def preprocess_image(original_img, resize_to=(224, 224), thumbnail=True) -> torch.Tensor:
+    transforms = []
+    if resize_to is not None:
+        if not isinstance(original_img, PILImage):
+            transforms.append(T.ToPILImage())
+        if thumbnail:
+            transforms.append(T2.Thumbnail(resize_to))
+        else:
+            transforms.append(T.Resize(resize_to))
 
-    Args:
-        pil_im (PIL_img): Image to process
-        resize_im (bool): Resize to 224 or not
-    returns:
-        im_as_var (torch variable): Variable that contains processed float tensor
-    """
-    # Resize image
-    if resize_im:
-        pil_im.thumbnail((224, 224))
-
-    im_as_arr = convert_image(pil_im, to_type=np.ndarray, shape='3WH', norm='float_1')
-    # Normalize the channels
-    im_as_arr = (im_as_arr - IMAGENET_MEAN[..., None, None]) / IMAGENET_STD[..., None, None]
-    # Convert to float tensor
-    im_as_ten = convert_image(im_as_arr, to_type=torch.Tensor, shape='13WH').float()
-    # Convert to Pytorch variable
-    im_as_ten.requires_grad_()
-    return im_as_ten
+    transforms += [
+        T.ToTensor(),
+        T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+    ]
+    return T.Compose(transforms)(original_img).unsqueeze(0).requires_grad_()
 
 
 def recreate_image(im_as_ten: torch.Tensor, denormalize: bool = True, to_pil: bool = False) -> Union[np.ndarray, PILImage]:
