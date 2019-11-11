@@ -4,14 +4,9 @@ from typing import Tuple
 import torch
 import torch.nn.functional as F
 from toolz import curry
+from torch import nn
 
 from pyimgy.core import convert_image
-
-config = {
-    "model_input_size": {
-        "AlexNet": (224, 224)
-    }
-}
 
 
 @curry
@@ -30,7 +25,7 @@ def get_masks(bbox: Tuple[int, int], window: Tuple[int, int]):
 
 
 @curry
-def apply_mask(image, mask, replace_value=0, in_place=False):
+def apply_mask(image: torch.Tensor, mask: Tuple[int, ...], replace_value: float = 0, in_place: bool = False):
     if not in_place:
         image = image.clone()
     x1, x2, y1, y2 = mask
@@ -38,20 +33,17 @@ def apply_mask(image, mask, replace_value=0, in_place=False):
     return image
 
 
-def resize_like_input(input_size, masks, probs):
+def build_heatmap_from_probs(input_size, masks, probs):
     img = torch.zeros(input_size)
     for mask, prob in zip(masks, probs):
         apply_mask(img, mask, prob, in_place=True)
     return img
 
 
-def occlusion(model, input, target_class, window=(30, 30)):
-    input = convert_image(input, to_type=torch.Tensor)
+def generate_occlusion_heatmap(model: nn.Module, input: torch.Tensor, target_class: int, window: Tuple[int, int] = (30, 30)):
+    input = convert_image(input, to_type=torch.Tensor, shape='CWH')
 
-    if len(input.shape) == 4:
-        input = input.squeeze(0)
-
-    masks = get_masks(config["model_input_size"]["AlexNet"], window)
+    masks = get_masks(input.shape[1:], window)
 
     print(f'{len(masks)} masks obtained for the input of size {input.shape}. First={masks[0]}; Last={masks[-1]}')
 
@@ -71,5 +63,5 @@ def occlusion(model, input, target_class, window=(30, 30)):
 
     hm = probs.view(heatmap_height, heatmap_width)
     class_map = torch.argmax(logits, dim=1).view(heatmap_height, heatmap_width)
-    hm_scaled = resize_like_input(input.shape[1:], masks, probs)
+    hm_scaled = build_heatmap_from_probs(input.shape[1:], masks, probs)
     return hm, class_map, hm_scaled

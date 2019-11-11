@@ -30,6 +30,12 @@ NOT_FLATTEN_MODULES = {
     fastai.layers.AdaptiveConcatPool2d
 }
 
+MODELS_CONFIG = {
+    'input_size': {
+        'AlexNet': (224, 224)
+    }
+}
+
 
 def get_module_name(module: nn.Module) -> str:
     clazz = module.__class__
@@ -108,14 +114,16 @@ class LayeredModule(nn.Module):
 
     """
     layers: nn.ModuleDict
+    arch_name: str
     hooked_layer_keys = set()
     hooked_param_layer_keys = set()
     hooked_activation_keys = set()
 
-    def __init__(self, layers, hooked_layer_keys=None, hooked_activation_keys=None, hooked_param_layer_keys=None,
+    def __init__(self, layers, arch_name: str, hooked_layer_keys=None, hooked_activation_keys=None, hooked_param_layer_keys=None,
                  hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
+        self.arch_name = arch_name
 
         self.hooks_layers = None
         self.hooks_activations = None
@@ -129,7 +137,7 @@ class LayeredModule(nn.Module):
         self.custom_activation_hook_factory = custom_activation_hook_factory
 
     def copy(self):
-        return self.__class__(self.layers.items(), self.hooked_layer_keys, self.hooked_activation_keys, self.hooked_param_layer_keys,
+        return self.__class__(self.layers.items(), self.arch_name, self.hooked_layer_keys, self.hooked_activation_keys, self.hooked_param_layer_keys,
                               self.hook_to_activations, self.custom_activation_hook_factory)
 
     @classmethod
@@ -141,7 +149,7 @@ class LayeredModule(nn.Module):
         :return:
         """
         cnn = copy.deepcopy(cnn)
-        return cls(get_flat_layers(cnn, prepended_layers), *args, **kwargs)
+        return cls(get_flat_layers(cnn, prepended_layers), cnn.__class__.__name__, *args, **kwargs)
 
     @classmethod
     def from_nested_cnn(cls, model, *args, **kwargs):
@@ -150,7 +158,7 @@ class LayeredModule(nn.Module):
         idx = find_index(layers, lambda l: get_name_from_key(l[0]) == 'linear')
         if idx >= 0:
             layers.insert(idx, ('flatten', Lambda(lambda x: torch.flatten(x, 1))))
-        return cls(layers, *args, **kwargs)
+        return cls(layers, model.__class__.__name__, *args, **kwargs)
 
     # TODO: implement similar static methods for other archs
 
