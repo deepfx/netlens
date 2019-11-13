@@ -79,7 +79,7 @@ class StyleTransferModule(LayeredModule):
         # we don't need to hook to the layers anymore
         self.set_hooked_layers(None, keep=False)
 
-    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3,
+    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3, callback=None, 
                            verbose=True):
 
         input_img = input_img.clone().detach().requires_grad_()
@@ -102,7 +102,10 @@ class StyleTransferModule(LayeredModule):
                 tv_score = tv_weight * total_variation_loss(input_img)
                 loss = style_score + content_score + tv_score
                 loss.backward()
-
+                
+                if callback:
+                    callback(run[0], input_img, style_score.item(), content_score.item())
+                
                 run[0] += 1
                 if verbose and run[0] % 50 == 0:
                     print("run {}:".format(run))
