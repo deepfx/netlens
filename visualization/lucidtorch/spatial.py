@@ -33,14 +33,12 @@ def fft_image(shape, sd=None, decay_power=1):
         # to get a unitary transformation. This allows to use similar
         # learning rates to pixel-wise optimisation.
         spectrum_scale *= np.sqrt(w * h)
-        print(spectrum.shape, spectrum_scale.shape, spectrum_scale.dtype)
         scaled_spectrum = spectrum * torch.from_numpy(spectrum_scale.astype('float32'))
         # img = tf.spectral.irfft2d(scaled_spectrum)
         img = torch.irfft(scaled_spectrum.permute((1, 2, 3, 0)), signal_ndim=2)
-
         # in case of odd input dimension we cut off the additional pixel
         # we get from irfft2d length computation
         img = img[:ch, :h, :w]
         img = img.permute((1, 2, 0))  # torch.transpose(img, [1, 2, 0])
         imgs.append(img)
-    return torch.stack(imgs) / 4.0
+    return torch.stack(imgs, dim=0) / 4.0
