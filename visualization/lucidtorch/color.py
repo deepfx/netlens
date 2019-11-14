@@ -13,7 +13,7 @@ color_mean = [0.48, 0.46, 0.41]
 
 
 def _linear_decorelate_color(t: torch.Tensor) -> torch.Tensor:
-    """Multiply input by sqrt of emperical (ImageNet) color correlation matrix.
+    """Multiply input by sqrt of empirical (ImageNet) color correlation matrix.
 
     If you interpret t's innermost dimension as describing colors in a
     decorrelated version of the color space (which is a very natural way to
@@ -21,12 +21,13 @@ def _linear_decorelate_color(t: torch.Tensor) -> torch.Tensor:
     to map back to normal colors is multiply the square root of your color
     correlations.
     """
-    # check that inner dimension is 3?
-    assert t.shape[-1] == 3
-    t_flat = t.reshape((-1, 3))
-    color_correlation_normalized = torch.from_numpy(color_correlation_svd_sqrt / max_norm_svd_sqrt)
-    t_flat = t_flat.matmul(color_correlation_normalized.t())
-    t = t_flat.reshape(t.shape)
+    # check that channel dimension is 3
+    assert t.shape[-3] == 3
+    tp = t.permute((0, 2, 3, 1))
+    t_flat = tp.reshape((-1, 3))  # 1.h.w.3 -> hw.3
+    color_correlation_normalized = torch.from_numpy(color_correlation_svd_sqrt / max_norm_svd_sqrt) # 3.3
+    t_flat = t_flat.matmul(color_correlation_normalized.t()) # hw.3 x 3.3 = hw.3
+    t = t_flat.reshape(tp.shape).permute((0, 3, 1, 2))
     return t
 
 
