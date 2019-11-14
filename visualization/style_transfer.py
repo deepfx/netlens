@@ -52,7 +52,7 @@ class StyleTransferModule(LayeredModule):
                  content_layer_keys=None,
                  style_target=None,
                  style_layer_keys=None):
-        super(StyleTransferModule, self).__init__(arch.layers.items(), arch.arch_name)
+        super(StyleTransferModule, self).__init__(arch.layers.items(), arch.arch_name, arch.flat_keys)
         self.content_target = content_target
         self.style_target = style_target
 
@@ -69,17 +69,21 @@ class StyleTransferModule(LayeredModule):
         self.set_hooked_layers(insertion_keys)
         # do a forward pass to get the layer outputs
         self.forward(target)
-        for key in insertion_keys:
+        for i, key in enumerate(insertion_keys):
             # create loss layer
             loss_layer = layer_class(self.hooks_layers.get_stored(key))
             # insert it after layer at key
-            # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
-            _, nth = key_to_tuple(key)
+            if self.flat_keys:
+                nth = i
+            else:
+                # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
+                _, nth = key_to_tuple(key)
             self.insert_after(key, tuple_to_key(layer_class.name, nth), loss_layer)
         # we don't need to hook to the layers anymore
         self.set_hooked_layers(None, keep=False)
 
-    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3, callback=None, 
+    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3,
+                           callback=None,
                            verbose=True):
 
         input_img = input_img.clone().detach().requires_grad_()
@@ -102,10 +106,10 @@ class StyleTransferModule(LayeredModule):
                 tv_score = tv_weight * total_variation_loss(input_img)
                 loss = style_score + content_score + tv_score
                 loss.backward()
-                
+
                 if callback:
                     callback(run[0], input_img, style_score.item(), content_score.item())
-                
+
                 run[0] += 1
                 if verbose and run[0] % 50 == 0:
                     print("run {}:".format(run))
