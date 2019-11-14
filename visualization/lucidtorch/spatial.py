@@ -41,6 +41,6 @@ def fft_image(shape, sd=None, decay_power=1):
         # in case of odd input dimension we cut off the additional pixel
         # we get from irfft2d length computation
         img = img[:ch, :h, :w]
-        img = img.permute((1, 2, 0))  # torch.transpose(img, [1, 2, 0])
+        # img = img.permute((1, 2, 0))  # torch.transpose(img, [1, 2, 0])
         imgs.append(img)
     return torch.stack(imgs) / 4.0
