@@ -50,13 +50,16 @@ def get_module_names(modules: Iterable[nn.Module]) -> Iterable[Tuple[str, nn.Mod
     return [(get_module_name(m), m) for m in modules]
 
 
-def get_flat_layers(model: nn.Module, prepended_layers=None) -> Iterable[Tuple[str, nn.Module]]:
+def get_flat_layers(model: nn.Module, prepended_layers=None, keep_names: bool = False) -> Iterable[Tuple[str, nn.Module]]:
     """
     Returns all the sub-modules of the given model as a list of named layers, assuming that the provided model is FLAT.
     Optionally pre-prepends some layers at the beginning.
     """
-    layers = [clean_layer(layer) for layer in model.children()]
-    return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
+    if keep_names:
+        return enumerate_module_keys(get_module_names(as_list(prepended_layers))) + list(model._modules.items())
+    else:
+        layers = [clean_layer(layer) for layer in model.children()]
+        return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
 
 
 def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = None) -> Iterable[Tuple[str, nn.Module]]:
@@ -141,15 +144,16 @@ class LayeredModule(nn.Module):
                               self.hook_to_activations, self.custom_activation_hook_factory)
 
     @classmethod
-    def from_cnn(cls, cnn, prepended_layers=None, *args, **kwargs):
+    def from_cnn(cls, cnn, prepended_layers=None, keep_names: bool = False, *args, **kwargs):
         """
         Converts a generic CNN into our standardized LayeredModule. The layer ids are inferred automatically from the CNN's layers.
         :param cnn:
         :param prepended_layers:
+        :param keep_names:
         :return:
         """
         cnn = copy.deepcopy(cnn)
-        return cls(get_flat_layers(cnn, prepended_layers), cnn.__class__.__name__, *args, **kwargs)
+        return cls(get_flat_layers(cnn, prepended_layers, keep_names), cnn.__class__.__name__, *args, **kwargs)
 
     @classmethod
     def from_nested_cnn(cls, model, *args, **kwargs):
