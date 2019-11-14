@@ -22,6 +22,7 @@ def _linear_decorelate_color(t: torch.Tensor) -> torch.Tensor:
     correlations.
     """
     # check that inner dimension is 3?
+    assert t.shape[-1] == 3
     t_flat = t.reshape((-1, 3))
     color_correlation_normalized = torch.from_numpy(color_correlation_svd_sqrt / max_norm_svd_sqrt)
     t_flat = t_flat.matmul(color_correlation_normalized.t())
@@ -55,4 +56,4 @@ def to_valid_rgb(t: torch.Tensor, decorrelate: bool = False, sigmoid: bool = Tru
     if sigmoid:
         return torch.sigmoid(t)
     else:
-        raise NotImplementedError()
+        return t.clamp(min=0.0, max=1.0)
