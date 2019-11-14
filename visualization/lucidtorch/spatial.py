@@ -2,7 +2,8 @@ from .color import *
 
 
 def naive(shape, sd=None):
-    raise NotImplementedError()
+    sd = sd or 0.01
+    return (torch.randn(shape) * sd).requires_grad_()
 
 
 def _rfft2d_freqs(h, w):
@@ -32,9 +33,10 @@ def fft_image(shape, sd=None, decay_power=1):
         # Scale the spectrum by the square-root of the number of pixels
         # to get a unitary transformation. This allows to use similar
         # learning rates to pixel-wise optimisation.
+        spectrum_scale *= np.sqrt(w * h)
         spectrum_scale = torch.from_numpy(spectrum_scale.astype('float32'))
         print(f'fft_image: spectrum.shape={spectrum.shape}, scale.shape={spectrum_scale.shape}')
-        scaled_spectrum = spectrum * spectrum_scale[None,:,:,None]
+        scaled_spectrum = spectrum * spectrum_scale[None, :, :, None]
         # img = tf.spectral.irfft2d(scaled_spectrum)
         img = torch.irfft(scaled_spectrum, signal_ndim=2)
         # in case of odd input dimension we cut off the additional pixel
