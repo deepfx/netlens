@@ -1,23 +1,19 @@
 "Visualise models"
 
-import numpy as np
-import torch
 import torchvision
-from PIL import Image
 
-from ..core import *
-from ..utils import *
-from ..transforms import *
-from ..utils import denorm
 from .objective import *
 from .param import *
+from .transforms import *
+from .utils import zoom
 
 VIS_TFMS = torchvision.transforms.Compose([
     RandomAffineTfm(scale, [0.9, 1.1]),
     RandomAffineTfm(rotate, 10),
 ])
 
-class OptVis():
+
+class OptVis:
     """
     Class to visualise particular layers by optimisation. Visualisation
     follows the procedure outlined by Olah et al. [1] and
@@ -68,7 +64,7 @@ class OptVis():
 
         freeze(self.model, bn=True)
         self.optim = self.optim_fn(img_param.parameters(), lr=lr, weight_decay=wd)
-        for i in range(max(thresh)+1):
+        for i in range(max(thresh) + 1):
             img = img_param()
 
             if transform:
@@ -84,7 +80,6 @@ class OptVis():
             #     img_param.noise.grad.data = img_param.noise.grad.data / (img_param.noise.grad.data.std() + 1e-1)
             #     input_img.grad.data = ReducingGaussianBlur(3, 3, 5)(input_img.grad.data)
             # print(img_param.noise.grad.abs().max(), img_param.noise.grad.abs().mean(),img_param.noise.grad.std())
-
 
             self.optim.step()
             self.optim.zero_grad()

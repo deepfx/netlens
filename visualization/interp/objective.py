@@ -1,17 +1,20 @@
 "Visualisation Objectives"
 
 import torch
-from ..hooks import Hook
-from ..core import *
-from ..imagenet import imagenet_stats, imagenet_labels
 
-class Objective():
+from .core import *
+from .hooks import Hook
+from .imagenet import imagenet_labels
+
+
+class Objective:
     """Defines an Objective which OptVis will optimise. The
     Objective class should have a callable function which
     should return the loss associated with the forward pass.
     This class has the same functionality as Lucid: objectives
     can be summed, multiplied by scalars, negated or subtracted.
     """
+
     def __init__(self, objective_function, name=None):
         """
         Parameters:
@@ -32,7 +35,7 @@ class Objective():
         return f"{self.cls_name}" if self.name is None else self.name
 
     def __add__(self, other):
-        if isinstance(other, (int,float)):
+        if isinstance(other, (int, float)):
             name = " + ".join([self.__repr__(), other.__repr__()])
             return Objective(lambda x: other + self(x), name=name)
         elif isinstance(other, Objective):
@@ -42,14 +45,14 @@ class Objective():
             raise TypeError(f"Can't add value of type {type(other)}")
 
     def __mul__(self, other):
-        if isinstance(other, (int,float)):
+        if isinstance(other, (int, float)):
             name = f"{other}*{self.__repr__()}"
             return Objective(lambda x: other * self(x), name=name)
         else:
             raise TypeError(f"Can't add value of type {type(other)}")
 
     def __sub__(self, other):
-        return self + (-1*other)
+        return self + (-1 * other)
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -59,6 +62,7 @@ class Objective():
 
     def __neg__(self):
         return self.__mul__(-1.)
+
 
 class LayerObjective(Objective):
     """Generate an Objective from a particular layer of a network.
@@ -73,6 +77,7 @@ class LayerObjective(Objective):
     shortcut (bool): Whether to attempt to shortcut the network's
         computation. Only works for Sequential type models.
     """
+
     def __init__(self, model, layer, channel=None, neuron=None, shortcut=False):
         self.model = model
         self.layer = layer
@@ -89,6 +94,7 @@ class LayerObjective(Objective):
 
     def objective_function(self, x):
         "Apply the input to the network and set the loss."
+
         def layer_hook(module, input, output):
             if self.neuron is None:
                 if self.channel is None:
@@ -121,6 +127,6 @@ class LayerObjective(Objective):
             msg += f":{self.channel}"
         if self.neuron is not None:
             msg += f":{self.neuron}"
-        if self.channel is None and self.neuron is not None and self.model[self.layer].weight.size(0)==1000:
+        if self.channel is None and self.neuron is not None and self.model[self.layer].weight.size(0) == 1000:
             msg += f"  {imagenet_labels[self.neuron]}"
         return msg
