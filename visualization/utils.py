@@ -61,16 +61,16 @@ def enumerate_module_keys(named_modules: Iterable[Tuple[str, nn.Module]]) -> Lis
     return [(key_counter.get_next(name), module) for name, module in named_modules]
 
 
-def insert_layer_after(layer_list, insertion_key: str, new_key: str, new_layer: nn.Module):
+def insert_layer_at_key(layer_list, insertion_key: str, new_key: str, new_layer: nn.Module, after: bool = True):
     idx = find_index(layer_list, lambda l: l[0] == insertion_key)
     if idx >= 0:
-        layer_list.insert(idx + 1, (new_key, new_layer))
+        layer_list.insert(idx + (1 if after else 0), (new_key, new_layer))
     return layer_list
 
 
-def delete_all_layers_after(layer_list, last_key: str):
+def delete_all_layers_from_key(layer_list, last_key: str, inclusive: bool = False):
     idx = find_index(layer_list, lambda l: l[0] == last_key)
-    return layer_list[:idx + 1] if idx >= 0 else layer_list
+    return layer_list[:idx + (0 if inclusive else 1)] if idx >= 0 else layer_list
 
 
 def make_set(vals):
