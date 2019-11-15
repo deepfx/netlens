@@ -1,4 +1,10 @@
-from .modules import *
+import copy
+
+import torch
+import torchvision
+from fastai.layers import Lambda
+
+from .utils import find_index
 
 
 # Code for transforming special architectures to our layered model
@@ -7,7 +13,8 @@ def googlenet_to_layers(model: torchvision.models.GoogLeNet):
     if model.aux_logits:
         raise NotImplementedError('Aux logits not yet there!')
 
-    layers = get_flat_layers(copy.deepcopy(model), keep_names=True)
+    model = copy.deepcopy(model)
+    layers = list(model._modules.items())
 
     if model.transform_input:
         # append the transformer at the beginning
