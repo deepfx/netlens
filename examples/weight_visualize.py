@@ -23,7 +23,7 @@ def main():
 
 
     model = alexnet(pretrained=True)
-    alex = LayeredModule.from_alexnet(model)
+    alex = LayeredModule.from_nested_cnn(model)
 
     print(alex, "alex")
     plot_weights(alex.layers['features-conv-0'])
