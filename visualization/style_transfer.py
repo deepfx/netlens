@@ -56,7 +56,7 @@ class StyleTransferModule(LayeredModule):
 
         # remove the layers after the last loss layer, which are useless
         last = find_last(self.layers.items(), lambda l: isinstance(l[1], FeatureLoss))
-        self.delete_all_after(last[0])
+        self.delete_all_from_key(last[0])
 
     def _insert_loss_layers(self, name, layer_constructor, target, insertion_keys):
         self.set_hooked_layers(insertion_keys)
@@ -71,17 +71,20 @@ class StyleTransferModule(LayeredModule):
             else:
                 # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
                 _, nth = key_to_tuple(key)
-            self.insert_after(key, tuple_to_key(name, nth), loss_layer)
+            self.insert_at_key(key, tuple_to_key(name, nth), loss_layer)
         # we don't need to hook to the layers anymore
         self.set_hooked_layers(None, keep=False)
 
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=100, style_weight=1, content_weight=1, tv_weight=0,
                            callback=None, in_place=False, verbose=True):
 
-        if not in_place:
+        generated_input = isinstance(input_img, nn.Module) or callable(input_img)
+
+        if not in_place and not generated_input:
             input_img = input_img.clone().detach().requires_grad_()
 
-        optimizer = optimizer_class([input_img])
+        params = input_img.parameters() if generated_input else [input_img]
+        optimizer = optimizer_class(params)
 
         style_losses = self.get_modules('style_loss')
         content_losses = self.get_modules('content_loss')
@@ -90,19 +93,23 @@ class StyleTransferModule(LayeredModule):
         run = [0]
         while run[0] <= num_steps:
             def closure():
-                # correct the values of updated input image
-                input_img.data.clamp_(0, 1)
-
                 optimizer.zero_grad()
-                self.forward(input_img)
+
+                if generated_input:
+                    self.forward(input_img())
+                else:
+                    # correct the values of updated input image
+                    input_img.data.clamp_(0, 1)
+                    self.forward(input_img)
+
                 style_score = style_weight * sum(sl.loss for sl in style_losses)
                 content_score = content_weight * sum(cl.loss for cl in content_losses)
-                tv_score = tv_weight * total_variation_loss(input_img)
+                tv_score = 0  # tv_weight * total_variation_loss(input_img)
                 loss = style_score + content_score + tv_score
                 loss.backward()
 
-                if callback:
-                    callback(run[0], input_img, style_score.item(), content_score.item())
+                # if callback:
+                #     callback(run[0], input_img, style_score.item(), content_score.item())
 
                 run[0] += 1
                 if verbose and run[0] % 50 == 0:
@@ -113,6 +120,6 @@ class StyleTransferModule(LayeredModule):
             optimizer.step(closure)
 
         # a last correction...
-        input_img.data.clamp_(0, 1)
+        # input_img.data.clamp_(0, 1)
 
         return input_img

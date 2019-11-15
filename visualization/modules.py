@@ -11,7 +11,7 @@ from torch import nn, Tensor
 from .adapters import convert_to_layers
 from .hooks import HookDict, TensorHook
 from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
-    insert_layer_after, delete_all_layers_after, update_set
+    insert_layer_at_key, delete_all_layers_from_key, update_set
 
 # GENERIC NAMES FOR DIFFERENT LAYERS
 # externally exposed – to smoothen out PyTorch changes
@@ -234,10 +234,16 @@ class LayeredModule(nn.Module):
     def get_module(self, layer_key: str) -> nn.Module:
         return self.layers[layer_key]
 
-    def insert_after(self, insertion_key: str, new_key: str, new_layer: nn.Module):
-        layer_list = list(self.layers.items())
-        self.layers = nn.ModuleDict(insert_layer_after(layer_list, insertion_key, new_key, new_layer))
+    def prepend(self, new_key: str, new_layer: nn.Module):
+        self.layers = nn.ModuleDict([(new_key, new_layer)] + list(self.layers.items()))
 
-    def delete_all_after(self, last_key: str):
+    def append(self, new_key: str, new_layer: nn.Module):
+        self.layers = nn.ModuleDict(list(self.layers.items()) + [(new_key, new_layer)])
+
+    def insert_at_key(self, insertion_key: str, new_key: str, new_layer: nn.Module, after: bool = True):
         layer_list = list(self.layers.items())
-        self.layers = nn.ModuleDict(delete_all_layers_after(layer_list, last_key))
+        self.layers = nn.ModuleDict(insert_layer_at_key(layer_list, insertion_key, new_key, new_layer, after))
+
+    def delete_all_from_key(self, last_key: str, inclusive: bool = False):
+        layer_list = list(self.layers.items())
+        self.layers = nn.ModuleDict(delete_all_layers_from_key(layer_list, last_key, inclusive))
