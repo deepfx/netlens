@@ -19,3 +19,18 @@ def one_hot_tensor(num_classes: int, target_class: int, device=None):
     one_hot = torch.zeros(1, num_classes, device=device)
     one_hot[0, target_class] = 1
     return one_hot
+
+
+def alpha_norm(input, alpha):
+    return (input.view(-1) ** alpha).sum()
+
+
+def total_variation_norm(input, beta):
+    to_check = input[:, :-1, :-1]  # Trimmed: right - bottom
+    one_bottom = input[:, 1:, :-1]  # Trimmed: top - right
+    one_right = input[:, :-1, 1:]  # Trimmed: top - right
+    return (((to_check - one_bottom) ** 2 + (to_check - one_right) ** 2) ** (beta / 2)).sum()
+
+
+def normalized_euclidean_loss(original, target):
+    return alpha_norm(target - original, 2) / alpha_norm(original, 2)

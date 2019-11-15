@@ -1,20 +1,22 @@
+import matplotlib.pyplot as plt
 import seaborn as sns
 from flashtorch.utils import ImageNetIndex
 from torchvision import models
 
+from visualization.data import get_example_data
 from visualization.image_proc import *
 from visualization.occlusion import *
 
 
 def main():
-    original_img, name, target_class = get_example_data(1, img_path='../old_visual/input_images/')
+    original_img, name, target_class = get_example_data(1, img_path='../images/examples/')
 
     prep_img = preprocess_image(original_img)
 
     m_orig = models.vgg19_bn(pretrained=True)
     m_orig.eval()
 
-    hm, cm, hm_scaled = occlusion(m_orig, prep_img, target_class)
+    hm, cm, hm_scaled = generate_occlusion_heatmap(m_orig, prep_img, target_class)
     prob_no_occ = torch.max(hm)
 
     _, axes = plt.subplots(1, 3, figsize=(15, 8))
