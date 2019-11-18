@@ -7,7 +7,13 @@ Playing with CNN architectures, gradient ascent for feature visualization, style
 ##Terms
 **Semantic Units**: Neurons, Spatial and Channel(detectors), Groups
 
+## Testing
+run 
+`pytest`
+or `pytest --disable-pytest-warnings`
+all Tests should be in /tests folder. Imports there are `as if!` from basedirectory
 
+In pycharm change your default test runner to pytest 
 ## Todos
 
 
