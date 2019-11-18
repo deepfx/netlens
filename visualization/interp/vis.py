@@ -7,6 +7,7 @@ from .param import *
 from .transforms import *
 from .utils import zoom
 
+
 VIS_TFMS = torchvision.transforms.Compose([
     RandomAffineTfm(scale, [0.9, 1.1]),
     RandomAffineTfm(rotate, 10),
