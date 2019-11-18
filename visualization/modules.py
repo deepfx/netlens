@@ -37,7 +37,6 @@ MODELS_CONFIG = {
     }
 }
 
-
 def get_module_name(module: nn.Module) -> str:
     clazz = module.__class__
     if clazz in MODULE_NAME_MAP:

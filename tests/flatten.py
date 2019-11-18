@@ -1,5 +1,6 @@
+import pytest
 from fastai.vision import *
-from visualization.modules import LayeredModule, get_nested_layers
+from visualization.modules import get_nested_layers
 
 def isFemale(path): return bool(int(path.name.split('_')[1]))
 def get_gender(path): return "female" if isFemale(path) else "male"

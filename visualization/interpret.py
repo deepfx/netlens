@@ -11,7 +11,6 @@ from visualization.utils import get_name_from_key
 
 
 class NetLens:
-
     def __init__(self, model: LayeredModule, input_image: Tensor, target_class: int = None, denormalize: bool = True):
         self.original_model, self.input_image, self.target_class = model, input_image, target_class
         # partial for the reconstruction of the original image from the input
