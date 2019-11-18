@@ -5,6 +5,7 @@ from torch.nn import Module, Parameter
 class RawParam(Module):
     """
     A raw 'parameterized image', that just wraps a normal tensor.
+    This has to be the first layer in the network. It wraps the input and is differentiable
     """
 
     def __init__(self, input: torch.Tensor, cloned: bool = True):
