@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from pydash import find_last
 from torch import nn, optim
 
-from visualization.interp.objective import Objective
+from .generation.objective import Objective
 from .math import gram_matrix
 from .modules import LayeredModule
 from .utils import key_to_tuple, tuple_to_key
@@ -76,6 +76,19 @@ class StyleTransferModule(LayeredModule):
         # we don't need to hook to the layers anymore
         self.set_hooked_layers(None, keep=False)
 
+    def compute_losses(self, x: torch.Tensor, style_weight=1.0, content_weight=1.0, tv_weight=0.0):
+        style_losses = self.get_modules('style_loss')
+        content_losses = self.get_modules('content_loss')
+
+        self.forward(x)
+
+        # the conditions are to avoid unnecessary computation
+        style_score = style_weight * sum(sl.loss for sl in style_losses) if style_weight != 0.0 else 0.0
+        content_score = content_weight * sum(cl.loss for cl in content_losses) if content_weight != 0.0 else 0.0
+        tv_score = tv_weight * total_variation_loss(x) if tv_weight != 0.0 else 0.0
+
+        return style_score + content_score + tv_score, style_score, content_score, tv_score
+
     def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=100, style_weight=1, content_weight=1, tv_weight=0,
                            callback=None, in_place=False, verbose=True):
 
@@ -84,95 +97,48 @@ class StyleTransferModule(LayeredModule):
 
         optimizer = optimizer_class([input_img])
 
-        style_losses = self.get_modules('style_loss')
-        content_losses = self.get_modules('content_loss')
-
         print("Optimizing...")
         run = [0]
+
+        def closure():
+            # correct the values of updated input image
+            # input_img.data.clamp_(0, 1)
+
+            optimizer.zero_grad()
+            loss, style_score, content_score, tv_score = self.compute_losses(input_img, style_weight, content_weight, tv_weight)
+            loss.backward()
+
+            # if callback:
+            #     callback(run[0], input_img, style_score.item(), content_score.item())
+
+            run[0] += 1
+            if verbose and run[0] % 50 == 0:
+                print("run {}:".format(run))
+                # print('Style Loss : {:4f} Content Loss: {:4f}\n'.format(style_score.item(), content_score.item()))
+            return loss
+
         while run[0] <= num_steps:
-            def closure():
-                # correct the values of updated input image
-                input_img.data.clamp_(0, 1)
-
-                optimizer.zero_grad()
-                self.forward(input_img)
-                style_score = style_weight * sum(sl.loss for sl in style_losses)
-                content_score = content_weight * sum(cl.loss for cl in content_losses)
-                tv_score = tv_weight * total_variation_loss(input_img)
-                loss = style_score + content_score + tv_score
-                loss.backward()
-
-                if callback:
-                    callback(run[0], input_img, style_score.item(), content_score.item())
-
-                run[0] += 1
-                if verbose and run[0] % 50 == 0:
-                    print("run {}:".format(run))
-                    print('Style Loss : {:4f} Content Loss: {:4f}\n'.format(style_score.item(), content_score.item()))
-                return style_score + content_score
+            # optimizer.zero_grad()
 
             optimizer.step(closure)
 
         # a last correction...
-        input_img.data.clamp_(0, 1)
+        # input_img.data.clamp_(0, 1)
 
         return input_img
 
 
 class StyleTransferObjective(Objective):
-    module: LayeredModule
-    content_target: torch.Tensor
-    style_target: torch.Tensor
-    name = 'style_transfer_obj'
+    module: StyleTransferModule
 
-    def __init__(self, arch: LayeredModule,
-                 content_target=None,
-                 content_layer_keys=None,
-                 style_target=None,
-                 style_layer_keys=None,
-                 style_weight=1, content_weight=1, tv_weight=0,
-                 loss_func=F.mse_loss):
-        self.module = LayeredModule(arch.layers.items(), arch.arch_name, arch.flat_keys)
-        self.content_target = content_target
-        self.style_target = style_target
+    def __init__(self, module: StyleTransferModule, style_weight=1.0, content_weight=1.0, tv_weight=0):
+        super(StyleTransferObjective, self).__init__('style_transfer_obj')
+        self.module = module
         self.style_weight, self.content_weight, self.tv_weight = style_weight, content_weight, tv_weight
-
-        if content_target is not None and content_layer_keys is not None:
-            content_loss = partial(FeatureLoss, transform=None, loss_func=loss_func)
-            self._insert_loss_layers('content_loss', content_loss, content_target, content_layer_keys)
-        if style_target is not None and style_layer_keys is not None:
-            style_loss = partial(FeatureLoss, transform=gram_matrix, loss_func=loss_func)
-            self._insert_loss_layers('style_loss', style_loss, style_target, style_layer_keys)
-
-        # remove the layers after the last loss layer, which are useless
-        last = find_last(self.module.layers.items(), lambda l: isinstance(l[1], FeatureLoss))
-        self.module.delete_all_from_key(last[0])
-
-    def _insert_loss_layers(self, name, layer_constructor, target, insertion_keys):
-        self.module.set_hooked_layers(insertion_keys)
-        # do a forward pass to get the layer outputs
-        self.module.forward(target)
-        for i, key in enumerate(insertion_keys):
-            # create loss layer
-            loss_layer = layer_constructor(self.module.hooks_layers.get_stored(key))
-            # insert it after layer at key
-            if self.module.flat_keys:
-                nth = i
-            else:
-                # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
-                _, nth = key_to_tuple(key)
-            self.module.insert_at_key(key, tuple_to_key(name, nth), loss_layer)
-        # we don't need to hook to the layers anymore
-        self.module.set_hooked_layers(None, keep=False)
+        # these just keep the last computed losses
+        self.style_loss, self.content_loss, self.tv_loss = None, None, None
 
     def objective_function(self, x):
-        style_losses = self.module.get_modules('style_loss')
-        content_losses = self.module.get_modules('content_loss')
-
-        self.module.forward(x)
-
-        style_score = self.style_weight * sum(sl.loss for sl in style_losses) if self.style_weight != 0.0 else 0.0
-        content_score = self.content_weight * sum(cl.loss for cl in content_losses) if self.content_weight != 0.0 else 0.0
-        tv_score = self.tv_weight * total_variation_loss(x) if self.tv_weight != 0.0 else 0.0
-
-        return style_score + content_score + tv_score
+        total_loss, self.style_loss, self.content_loss, self.tv_loss = \
+            self.module.compute_losses(x, self.style_weight, self.content_weight, self.tv_weight)
+        return total_loss
