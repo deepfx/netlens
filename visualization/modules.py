@@ -8,6 +8,7 @@ from fastai.layers import Lambda
 from pydash import find_index
 from torch import nn, Tensor
 
+from .adapters import convert_to_layers
 from .hooks import HookDict, TensorHook
 from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
     insert_layer_after, delete_all_layers_after, update_set
@@ -50,13 +51,16 @@ def get_module_names(modules: Iterable[nn.Module]) -> Iterable[Tuple[str, nn.Mod
     return [(get_module_name(m), m) for m in modules]
 
 
-def get_flat_layers(model: nn.Module, prepended_layers=None) -> Iterable[Tuple[str, nn.Module]]:
+def get_flat_layers(model: nn.Module, prepended_layers=None, keep_names: bool = False) -> List[Tuple[str, nn.Module]]:
     """
     Returns all the sub-modules of the given model as a list of named layers, assuming that the provided model is FLAT.
     Optionally pre-prepends some layers at the beginning.
     """
-    layers = [clean_layer(layer) for layer in model.children()]
-    return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
+    if keep_names:
+        return enumerate_module_keys(get_module_names(as_list(prepended_layers))) + list(model._modules.items())
+    else:
+        layers = [clean_layer(layer) for layer in model.children()]
+        return enumerate_module_keys(get_module_names(as_list(prepended_layers) + layers))
 
 
 def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = None) -> Iterable[Tuple[str, nn.Module]]:
@@ -119,11 +123,12 @@ class LayeredModule(nn.Module):
     hooked_param_layer_keys = set()
     hooked_activation_keys = set()
 
-    def __init__(self, layers, arch_name: str, hooked_layer_keys=None, hooked_activation_keys=None, hooked_param_layer_keys=None,
-                 hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
+    def __init__(self, layers, arch_name: str, flat_keys: bool = False, hooked_layer_keys=None, hooked_activation_keys=None,
+                 hooked_param_layer_keys=None, hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
         super(LayeredModule, self).__init__()
         self.layers = nn.ModuleDict(layers)
         self.arch_name = arch_name
+        self.flat_keys = flat_keys
 
         self.hooks_layers = None
         self.hooks_activations = None
@@ -137,19 +142,20 @@ class LayeredModule(nn.Module):
         self.custom_activation_hook_factory = custom_activation_hook_factory
 
     def copy(self):
-        return self.__class__(self.layers.items(), self.arch_name, self.hooked_layer_keys, self.hooked_activation_keys, self.hooked_param_layer_keys,
-                              self.hook_to_activations, self.custom_activation_hook_factory)
+        return self.__class__(self.layers.items(), self.arch_name, self.flat_keys, self.hooked_layer_keys, self.hooked_activation_keys,
+                              self.hooked_param_layer_keys, self.hook_to_activations, self.custom_activation_hook_factory)
 
     @classmethod
-    def from_cnn(cls, cnn, prepended_layers=None, *args, **kwargs):
+    def from_cnn(cls, cnn, prepended_layers=None, keep_names: bool = False, *args, **kwargs):
         """
         Converts a generic CNN into our standardized LayeredModule. The layer ids are inferred automatically from the CNN's layers.
         :param cnn:
         :param prepended_layers:
+        :param keep_names:
         :return:
         """
         cnn = copy.deepcopy(cnn)
-        return cls(get_flat_layers(cnn, prepended_layers), cnn.__class__.__name__, *args, **kwargs)
+        return cls(get_flat_layers(cnn, prepended_layers, keep_names), cnn.__class__.__name__, *args, **kwargs)
 
     @classmethod
     def from_nested_cnn(cls, model, *args, **kwargs):
@@ -159,6 +165,11 @@ class LayeredModule(nn.Module):
         if idx >= 0:
             layers.insert(idx, ('flatten', Lambda(lambda x: torch.flatten(x, 1))))
         return cls(layers, model.__class__.__name__, *args, **kwargs)
+
+    @classmethod
+    def from_custom_model(cls, model, *args, **kwargs):
+        layers, flat_keys = convert_to_layers(model)
+        return cls(layers, model.__class__.__name__, flat_keys, *args, **kwargs)
 
     # TODO: implement similar static methods for other archs
 
