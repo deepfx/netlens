@@ -1,6 +1,6 @@
 import collections
 from collections import defaultdict
-from typing import Tuple, Iterable
+from typing import Tuple, Iterable, List
 
 from pydash import find_index
 from torch import nn
@@ -56,7 +56,7 @@ class KeyCounter:
         return (name, nth) if self.as_tuples else tuple_to_key(name, nth)
 
 
-def enumerate_module_keys(named_modules: Iterable[Tuple[str, nn.Module]]) -> Iterable[Tuple[str, nn.Module]]:
+def enumerate_module_keys(named_modules: Iterable[Tuple[str, nn.Module]]) -> List[Tuple[str, nn.Module]]:
     key_counter = KeyCounter()
     return [(key_counter.get_next(name), module) for name, module in named_modules]
 

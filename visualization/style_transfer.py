@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 import torch.nn.functional as F
 from pydash import find_last
@@ -8,32 +10,20 @@ from .modules import LayeredModule
 from .utils import key_to_tuple, tuple_to_key
 
 
-class ContentLoss(nn.Module):
-    name: str = 'content_loss'
+class FeatureLoss(nn.Module):
 
-    def __init__(self, target):
-        super(ContentLoss, self).__init__()
-        # we 'detach' the target content from the tree used
-        # to dynamically compute the gradient: this is a stated value,
-        # not a variable. Otherwise the forward method of the criterion
-        # will throw an error.
-        self.target = target.detach()
+    def __init__(self, target: torch.Tensor, transform=None, loss_func=F.mse_loss):
+        super(FeatureLoss, self).__init__()
+        self.transform = transform
+        self.loss_func = loss_func
+        self.target = self._transformed(target).detach()
+        self.loss = None
 
-    def forward(self, input):
-        self.loss = F.mse_loss(input, self.target)
-        return input
-
-
-class StyleLoss(nn.Module):
-    name: str = 'style_loss'
-
-    def __init__(self, target_feature):
-        super(StyleLoss, self).__init__()
-        self.target = gram_matrix(target_feature).detach()
+    def _transformed(self, t):
+        return t if self.transform is None else self.transform(t)
 
     def forward(self, input):
-        G = gram_matrix(input)
-        self.loss = F.mse_loss(G, self.target)
+        self.loss = self.loss_func(self._transformed(input), self.target)
         return input
 
 
@@ -51,42 +41,50 @@ class StyleTransferModule(LayeredModule):
                  content_target=None,
                  content_layer_keys=None,
                  style_target=None,
-                 style_layer_keys=None):
-        super(StyleTransferModule, self).__init__(arch.layers.items(), arch.arch_name)
+                 style_layer_keys=None,
+                 loss_func=F.mse_loss):
+        super(StyleTransferModule, self).__init__(arch.layers.items(), arch.arch_name, arch.flat_keys)
         self.content_target = content_target
         self.style_target = style_target
 
         if content_target is not None and content_layer_keys is not None:
-            self._insert_loss_layers(ContentLoss, content_target, content_layer_keys)
+            content_loss = partial(FeatureLoss, transform=None, loss_func=loss_func)
+            self._insert_loss_layers('content_loss', content_loss, content_target, content_layer_keys)
         if style_target is not None and style_layer_keys is not None:
-            self._insert_loss_layers(StyleLoss, style_target, style_layer_keys)
+            style_loss = partial(FeatureLoss, transform=gram_matrix, loss_func=loss_func)
+            self._insert_loss_layers('style_loss', style_loss, style_target, style_layer_keys)
 
         # remove the layers after the last loss layer, which are useless
-        last = find_last(self.layers.items(), lambda l: isinstance(l[1], (ContentLoss, StyleLoss)))
+        last = find_last(self.layers.items(), lambda l: isinstance(l[1], FeatureLoss))
         self.delete_all_after(last[0])
 
-    def _insert_loss_layers(self, layer_class, target, insertion_keys):
+    def _insert_loss_layers(self, name, layer_constructor, target, insertion_keys):
         self.set_hooked_layers(insertion_keys)
         # do a forward pass to get the layer outputs
         self.forward(target)
-        for key in insertion_keys:
+        for i, key in enumerate(insertion_keys):
             # create loss layer
-            loss_layer = layer_class(self.hooks_layers.get_stored(key))
+            loss_layer = layer_constructor(self.hooks_layers.get_stored(key))
             # insert it after layer at key
-            # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
-            _, nth = key_to_tuple(key)
-            self.insert_after(key, tuple_to_key(layer_class.name, nth), loss_layer)
+            if self.flat_keys:
+                nth = i
+            else:
+                # we form the key of the new layer with the same 'nth' of the layer after which it was inserted
+                _, nth = key_to_tuple(key)
+            self.insert_after(key, tuple_to_key(name, nth), loss_layer)
         # we don't need to hook to the layers anymore
         self.set_hooked_layers(None, keep=False)
 
-    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=300, style_weight=1000000, content_weight=1, tv_weight=1e-3, callback=None, 
-                           verbose=True):
+    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=100, style_weight=1, content_weight=1, tv_weight=0,
+                           callback=None, in_place=False, verbose=True):
 
-        input_img = input_img.clone().detach().requires_grad_()
+        if not in_place:
+            input_img = input_img.clone().detach().requires_grad_()
+
         optimizer = optimizer_class([input_img])
 
-        style_losses = self.get_modules(StyleLoss.name)
-        content_losses = self.get_modules(ContentLoss.name)
+        style_losses = self.get_modules('style_loss')
+        content_losses = self.get_modules('content_loss')
 
         print("Optimizing...")
         run = [0]
@@ -102,10 +100,10 @@ class StyleTransferModule(LayeredModule):
                 tv_score = tv_weight * total_variation_loss(input_img)
                 loss = style_score + content_score + tv_score
                 loss.backward()
-                
+
                 if callback:
                     callback(run[0], input_img, style_score.item(), content_score.item())
-                
+
                 run[0] += 1
                 if verbose and run[0] % 50 == 0:
                     print("run {}:".format(run))
