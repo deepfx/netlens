@@ -89,44 +89,6 @@ class StyleTransferModule(LayeredModule):
 
         return style_score + content_score + tv_score, style_score, content_score, tv_score
 
-    def run_style_transfer(self, input_img, optimizer_class=optim.LBFGS, num_steps=100, style_weight=1, content_weight=1, tv_weight=0,
-                           callback=None, in_place=False, verbose=True):
-
-        if not in_place:
-            input_img = input_img.clone().detach().requires_grad_()
-
-        optimizer = optimizer_class([input_img])
-
-        print("Optimizing...")
-        run = [0]
-
-        def closure():
-            # correct the values of updated input image
-            # input_img.data.clamp_(0, 1)
-
-            optimizer.zero_grad()
-            loss, style_score, content_score, tv_score = self.compute_losses(input_img, style_weight, content_weight, tv_weight)
-            loss.backward()
-
-            # if callback:
-            #     callback(run[0], input_img, style_score.item(), content_score.item())
-
-            run[0] += 1
-            if verbose and run[0] % 50 == 0:
-                print("run {}:".format(run))
-                # print('Style Loss : {:4f} Content Loss: {:4f}\n'.format(style_score.item(), content_score.item()))
-            return loss
-
-        while run[0] <= num_steps:
-            # optimizer.zero_grad()
-
-            optimizer.step(closure)
-
-        # a last correction...
-        # input_img.data.clamp_(0, 1)
-
-        return input_img
-
 
 class StyleTransferObjective(Objective):
     module: StyleTransferModule
@@ -138,6 +100,7 @@ class StyleTransferObjective(Objective):
         # these just keep the last computed losses
         self.style_loss, self.content_loss, self.tv_loss = None, None, None
 
+    # Objective.__call__
     def objective_function(self, x):
         total_loss, self.style_loss, self.content_loss, self.tv_loss = \
             self.module.compute_losses(x, self.style_weight, self.content_weight, self.tv_weight)

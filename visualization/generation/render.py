@@ -2,8 +2,16 @@ import torch.optim
 
 
 class OptVis:
+    '''
 
+    '''
     def __init__(self, model, objective, tfms=None, optim=torch.optim.Adam, optim_params=None):
+        """
+
+        :param model:
+        :param objective:
+        :param optim_params: learning rate, weight decay
+        """
         self.model = model
         self.objective = objective
         self.tfms = tfms
@@ -23,19 +31,12 @@ class OptVis:
         if callback:
             callback.on_render_begin(self, img_param)
 
-        def closure():
-            self.optim.zero_grad()
-
-            _loss = self.objective(img)
-            _loss.backward()
-
-            self.run += 1
-            if verbose and self.run % 50 == 0:
-                print(f'Run [{self.run}], loss={_loss.item():.4f}')
-
-            return _loss
-
         while self.run <= max(thresh):
+            '''
+            img_param is a source
+            
+            
+            '''
             img = img_param()
 
             if transform:
@@ -43,6 +44,18 @@ class OptVis:
 
             if callback:
                 callback.on_step_begin(self, img)
+
+            def closure():
+                self.optim.zero_grad()
+
+                _loss = self.objective(img)
+                _loss.backward(retain_graph=True)
+
+                self.run += 1
+                if verbose and self.run % 50 == 0:
+                    print(f'Run [{self.run}], loss={_loss.item():.4f}')
+
+                return _loss
 
             if in_closure:
                 self.optim.step(closure)
