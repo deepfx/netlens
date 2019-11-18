@@ -1,11 +1,19 @@
 import torch.optim
+import torchvision
+
+from visualization.interp.transforms import RandomAffineTfm, scale, rotate
+
+VIS_TFMS = torchvision.transforms.Compose([
+    RandomAffineTfm(scale, [0.9, 1.1]),
+    RandomAffineTfm(rotate, 10),
+])
 
 
 class OptVis:
     '''
 
     '''
-    def __init__(self, model, objective, tfms=None, optim=torch.optim.Adam, optim_params=None):
+    def __init__(self, model, objective, tfms=VIS_TFMS, optim=torch.optim.Adam, optim_params=None):
         """
 
         :param model:
@@ -24,7 +32,7 @@ class OptVis:
         self.optim = None
         self.run = 0
 
-    def vis(self, img_param, thresh=(100,), transform=False, in_closure=False, verbose=True, callback=None, display=False):
+    def vis(self, img_param, thresh=(100,), transform=True, in_closure=False, verbose=True, callback=None, display=False):
         self.optim = self.optim_fn(img_param.parameters(), **self.optim_params)
         self.run = 0
 

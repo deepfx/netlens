@@ -102,7 +102,7 @@ class ImageParam(nn.Module):
         if self.sigmoid:
             # if we sigmoid, we should also normalize
             im = torch.sigmoid(im)
-            im = norm(im, input_range=(0, 1), unsqueeze=False, grad=False, mean=self.mean, std=self.std)
+            #im = norm(im, input_range=(0, 1), unsqueeze=False, grad=False, mean=self.mean, std=self.std)
 
         return im
 
