@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from pydash import find_last
 from torch import nn, optim
 
+from visualization.generation.param import RawParam
+from visualization.generation.render import OptVis, OptVisCallback
 from .generation.objective import Objective
 from .math import gram_matrix
 from .modules import LayeredModule
@@ -105,3 +107,26 @@ class StyleTransferObjective(Objective):
         total_loss, self.style_loss, self.content_loss, self.tv_loss = \
             self.module.compute_losses(x, self.style_weight, self.content_weight, self.tv_weight)
         return total_loss
+
+
+class STCallback(OptVisCallback):
+    def on_step_begin(self, optvis, img, *args, **kwargs):
+        img.data.clamp_(0.0, 1.0)
+
+    def on_step_end(self, optvis, img, *args, **kwargs):
+        if optvis.run % 50 == 0:
+            print(
+                f'Style loss={optvis.objective.style_loss}, Content loss={optvis.objective.content_loss}, TV loss={optvis.objective.tv_loss}')
+
+    def on_render_end(self, optvis, img, *args, **kwargs):
+        img.data.clamp_(0.0, 1.0)
+
+
+# TODO: lookup table for weights (we know optim and model at that point
+def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=300,
+                            style_weight=1, content_weight=1, tv_weight=0):
+    # create objective
+    objective = StyleTransferObjective(module, style_weight, content_weight, tv_weight)
+    param_img = RawParam(input_img)
+    render = OptVis(module, objective, optim=optim.LBFGS)
+    return render.vis(param_img, (num_steps,), in_closure=True, callback=STCallback())

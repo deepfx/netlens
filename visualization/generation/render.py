@@ -24,7 +24,7 @@ class OptVis:
         self.optim = None
         self.run = 0
 
-    def vis(self, img_param, thresh=(100,), transform=True, in_closure=False, verbose=True, callback=None, display=False):
+    def vis(self, img_param, thresh=(100,), transform=False, in_closure=False, verbose=True, callback=None, display=False):
         self.optim = self.optim_fn(img_param.parameters(), **self.optim_params)
         self.run = 0
 
