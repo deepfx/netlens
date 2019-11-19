@@ -15,6 +15,7 @@ class NetLens:
         self.original_model, self.input_image, self.target_class = model, input_image, target_class
         # partial for the reconstruction of the original image from the input
         self.original_image = partial(recreate_image, self.input_image, denormalize)
+        #TODO this is confusing. property shouldn't dissappear
         self.model = None
 
     def _prepare_model(self, guided: bool = False):
