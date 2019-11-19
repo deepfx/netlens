@@ -132,6 +132,6 @@ def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=30
     objective = StyleTransferObjective(module, style_weight, content_weight, tv_weight)
     # the "parameterized" image is the image itself
     param_img = RawParam(input_img, cloned=True)
-    render = OptVis(module, objective, optim=optim.LBFGS)
+    render = OptVis(module, objective, optim=optim.LBFGS, tfms=None)
     thresh = (num_steps,) if isinstance(num_steps, int) else num_steps
     return render.vis(param_img, thresh, in_closure=True, callback=STCallback(), **kwargs)
