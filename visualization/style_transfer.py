@@ -5,9 +5,9 @@ import torch.nn.functional as F
 from pydash import find_last
 from torch import nn, optim
 
-from visualization.generation.param import RawParam
-from visualization.generation.render import OptVis, OptVisCallback
 from .generation.objective import Objective
+from .generation.param import RawParam
+from .generation.render import OptVis, OptVisCallback
 from .math import gram_matrix
 from .modules import LayeredModule
 from .utils import key_to_tuple, tuple_to_key
@@ -110,23 +110,28 @@ class StyleTransferObjective(Objective):
 
 
 class STCallback(OptVisCallback):
+    """
+    A callback class specific for style transfer
+    """
+
     def on_step_begin(self, optvis, img, *args, **kwargs):
         img.data.clamp_(0.0, 1.0)
 
     def on_step_end(self, optvis, img, *args, **kwargs):
-        if optvis.run % 50 == 0:
-            print(
-                f'Style loss={optvis.objective.style_loss}, Content loss={optvis.objective.content_loss}, TV loss={optvis.objective.tv_loss}')
+        if optvis.is_step_to_show():
+            print(f'Style loss={optvis.objective.style_loss}, Content loss={optvis.objective.content_loss}, '
+                  f'TV loss={optvis.objective.tv_loss}')
 
     def on_render_end(self, optvis, img, *args, **kwargs):
         img.data.clamp_(0.0, 1.0)
 
 
-# TODO: lookup table for weights (we know optim and model at that point
-def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=300,
-                            style_weight=1, content_weight=1, tv_weight=0):
-    # create objective
+# TODO: lookup table for weights (we know optim and model at that point)
+def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=300, style_weight=1, content_weight=1, tv_weight=0, **kwargs):
+    # create objective from the module and the weights
     objective = StyleTransferObjective(module, style_weight, content_weight, tv_weight)
-    param_img = RawParam(input_img)
+    # the "parameterized" image is the image itself
+    param_img = RawParam(input_img, cloned=True)
     render = OptVis(module, objective, optim=optim.LBFGS)
-    return render.vis(param_img, (num_steps,), in_closure=True, callback=STCallback())
+    thresh = (num_steps,) if isinstance(num_steps, int) else num_steps
+    return render.vis(param_img, thresh, in_closure=True, callback=STCallback(), **kwargs)
