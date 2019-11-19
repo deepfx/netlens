@@ -1,7 +1,9 @@
+from functools import partial
 from typing import Tuple
 
+import torch
 from PIL import Image
-from torchvision.transforms import RandomCrop, RandomAffine, ToPILImage, ToTensor, Compose
+from torchvision.transforms import RandomCrop, RandomAffine, ToPILImage, ToTensor, Compose, Lambda, Pad
 
 __all__ = ['Thumbnail', 'Jitter', 'VIS_TFMS']
 
@@ -29,13 +31,13 @@ class Jitter(RandomCrop):
 
     def __init__(self, d: int, *args, **kwargs):
         # we need to have a valid value of size until an actual image comes
-        super(Jitter, self).__init__((0, 0), *args, **kwargs)
+        super().__init__((0, 0), *args, **kwargs)
         self.d = d
 
     def __call__(self, img: Image.Image):
         w, h = img.size
         self.size = (h - self.d, w - self.d)
-        return super.__call__(img)
+        return super().__call__(img)
 
     def __repr__(self):
         return self.__class__.__name__ + '(d={0}, padding={1})'.format(self.d, self.padding)
@@ -52,9 +54,12 @@ standard_transforms = [
 """
 
 VIS_TFMS = Compose([
+    Lambda(partial(torch.squeeze, dim=0)),
     ToPILImage(),
-    Jitter(8, padding=12, fill=128, padding_mode='constant'),  # pad + jitter from lucid together here
-    RandomAffine(degrees=(-10, 10), scale=[1 + (i - 5) / 50. for i in range(11)]),  # random_scale + random_rotate from lucid together here
+    Pad(padding=6, fill=128, padding_mode='constant'),  # padding is on both sides
+    Jitter(8),
+    RandomAffine(degrees=(-10, 10), scale=(0.9, 1.1)),  # random_scale + random_rotate from lucid together here
     Jitter(4),
-    ToTensor()
+    ToTensor(),
+    Lambda(partial(torch.unsqueeze, dim=0)),
 ])
