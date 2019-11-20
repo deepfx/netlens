@@ -45,6 +45,7 @@ class OptVis:
         # state variables
         self.optim = None
         self.run = 0
+        self.step_backward = False
 
     def is_step_to_show(self):
         return self.run % self.show_step == 0
@@ -78,6 +79,8 @@ class OptVis:
             callback.on_render_begin(self, img_param)
 
         while self.run <= max(thresh):
+            self.step_backward = False
+
             # img_param is a "source" of images, a call to forward() just returns one
             img = img_param()
 
@@ -91,7 +94,10 @@ class OptVis:
                 self.optim.zero_grad()
 
                 _loss = self.objective(img)
-                _loss.backward(retain_graph=in_closure)
+
+                if not self.step_backward:
+                    _loss.backward()
+                    self.step_backward = True
 
                 self.run += 1
                 if verbose and self.is_step_to_show():

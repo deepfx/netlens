@@ -1,12 +1,17 @@
-from functools import partial
+import math
+import random
 from typing import Tuple
 
 import torch
 from PIL import Image
-from torchvision.transforms import RandomCrop, RandomAffine, ToPILImage, ToTensor, Compose, Lambda, Pad
+from fastai.vision import transform as T
+from torch.nn.functional import affine_grid, grid_sample
+from torchvision.transforms import RandomCrop, Compose
 
 __all__ = ['Thumbnail', 'Jitter', 'VIS_TFMS']
 
+
+# Transforms PIL.Image
 
 class Thumbnail(object):
 
@@ -53,13 +58,76 @@ standard_transforms = [
   ]
 """
 
+
+# Transforms on torch.Tensor
+
+# class TensorRandomCrop:
+#
+#     def __init__(self, size=None, delta=None):
+#         assert size is not None ^ delta is not None, "Exactly one of 'size' and 'delta' must be provided."
+
+
+def affine(mat: torch.Tensor):
+    def inner(x: torch.Tensor):
+        if x.dim() == 3:
+            x = x.unsqueeze(0)  # makes sure it is (N,C,W,H)
+        grid = affine_grid(mat.to(x.device), x.size())
+        return grid_sample(x, grid, padding_mode="reflection")
+
+    return inner
+
+
+def rotate(angle, radians: bool = False):
+    rad = angle if radians else math.pi * angle / 180.0
+    rot = torch.tensor([[math.cos(rad), -math.sin(rad), 0],
+                        [math.sin(rad), math.cos(rad), 0]]).unsqueeze(0)
+    return affine(rot)
+
+
+def translate(x, y):
+    rot = torch.tensor([[1.0, 0.0, -x],
+                        [0.0, 1.0, y]]).unsqueeze(0)
+    return affine(rot)
+
+
+def shear(shear_factor):
+    rot = torch.tensor([[1.0, shear_factor, 0.0],
+                        [0.0, 1.0, 0.0]]).unsqueeze(0)
+    return affine(rot)
+
+
+def scale(scale_factor):
+    mat = torch.tensor([[1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0]]).unsqueeze(0) / scale_factor
+    return affine(mat)
+
+
+class RandomAffineTfm:
+    """Randomly apply an affine transform on a tensor."""
+
+    def __init__(self, tfm, interval=None, values=None):
+        assert interval is not None ^ values is not None, "Exactly one of 'interval' or 'values' has to be provided."
+        self.tfm = tfm
+        self.interval = interval if isinstance(interval, (tuple, list)) else (-interval, interval) if interval is not None else None
+        self.values = values
+
+    def __call__(self, x):
+        value = random.uniform(*self.interval) if self.interval is not None else random.choice(self.values)
+        return self.tfm(value)(x)
+
+
+def jitter(delta):
+    def inner(x):
+        h, w = x.shape[-2:]
+        return T.crop((h - delta, w - delta))
+
+    return inner
+
+
 VIS_TFMS = Compose([
-    Lambda(partial(torch.squeeze, dim=0)),
-    ToPILImage(),
-    Pad(padding=6, fill=128, padding_mode='constant'),  # padding is on both sides
-    Jitter(8),
-    RandomAffine(degrees=(-10, 10), scale=(0.9, 1.1)),  # random_scale + random_rotate from lucid together here
-    Jitter(4),
-    ToTensor(),
-    Lambda(partial(torch.unsqueeze, dim=0)),
+    T.pad(padding=6, mode='reflection'),
+    jitter(8),
+    T.zoom(scale=(0.9, 1.1)),
+    T.rotate(degrees=(-10, 10), p=0.8),
+    jitter(4)
 ])

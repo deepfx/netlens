@@ -60,22 +60,22 @@ def rfft2d_freqs(h: int, w: int) -> np.ndarray:
     return np.sqrt(fx * fx + fy * fy)
 
 
-def fourier_image(size: Tuple[int, int], noise_scale: float = 0.01, decay_power: float = 1.0, device: str = None) -> Tuple[torch.Tensor, Callable]:
+def fourier_image(size: Tuple[int, int], spectrum_scale: float = 0.01, decay_power: float = 1.0, device: str = None) -> Tuple[torch.Tensor, Callable]:
     """Image initialized in the Fourier domain"""
     device = device or _get_default_device()
     freqs = rfft2d_freqs(*size)
-    noise = (noise_scale * torch.randn((3, *freqs.shape, 2))).to(device)  # dimensions: (C,W,H,Re/Im)
+    spectrum = (spectrum_scale * torch.randn((3, *freqs.shape, 2))).to(device)  # dimensions: (C,W,H,Re/Im)
 
-    def _get_image(_noise):
+    def _get_image(_spectrum):
         # Normalize the input
         scale = 1.0 / np.maximum(freqs, 1.0 / max(*size)) ** decay_power
         scale *= np.sqrt(size[0] * size[1])
-        scaled_spectrum_t = torch.tensor(scale, dtype=torch.float32, device=device)[None, ..., None] * _noise
+        scaled_spectrum_t = torch.tensor(scale, dtype=torch.float32, device=device)[None, ..., None] * _spectrum
 
         output = torch.irfft(scaled_spectrum_t, signal_ndim=2, onesided=False).unsqueeze(0)
         return output
 
-    return noise, _get_image
+    return spectrum, _get_image
 
 
 def random_image(size: Tuple[int, int], sd: float = 0.5, device: str = None) -> Tuple[torch.Tensor, Callable]:
@@ -104,11 +104,11 @@ class ImageParam(Module):
         self.sigmoid = sigmoid
 
         im_func = fourier_image if fft else random_image
-        self.noise, self.get_image = im_func(size, **kwargs)
-        self.noise = Parameter(self.noise)
+        self.param, self.get_image = im_func(size, **kwargs)
+        self.param = Parameter(self.param)
 
     def forward(self):
-        im = self.get_image(self.noise)
+        im = self.get_image(self.param)
         if self.decorrelate:
             im = _linear_decorrelate_color(im)
         if self.decorrelate and not self.sigmoid:
