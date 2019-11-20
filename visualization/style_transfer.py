@@ -8,7 +8,7 @@ from torch import nn, optim
 from .generation.objective import Objective
 from .generation.param import RawParam
 from .generation.render import OptVis, OptVisCallback
-from .math import gram_matrix
+from .math import gram_matrix, gram_matrix_2
 from .modules import LayeredModule
 from .utils import key_to_tuple, tuple_to_key
 
@@ -54,7 +54,7 @@ class StyleTransferModule(LayeredModule):
             content_loss = partial(FeatureLoss, transform=None, loss_func=loss_func)
             self._insert_loss_layers('content_loss', content_loss, content_target, content_layer_keys)
         if style_target is not None and style_layer_keys is not None:
-            style_loss = partial(FeatureLoss, transform=gram_matrix, loss_func=loss_func)
+            style_loss = partial(FeatureLoss, transform=gram_matrix_2, loss_func=loss_func)
             self._insert_loss_layers('style_loss', style_loss, style_target, style_layer_keys)
 
         # remove the layers after the last loss layer, which are useless
