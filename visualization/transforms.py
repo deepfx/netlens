@@ -4,9 +4,8 @@ from typing import Tuple
 
 import torch
 from PIL import Image
-from fastai.vision import transform as T
 from torch.nn.functional import affine_grid, grid_sample
-from torchvision.transforms import RandomCrop, Compose
+from torchvision.transforms import RandomCrop, Compose, Lambda
 
 __all__ = ['Thumbnail', 'Jitter', 'VIS_TFMS']
 
@@ -61,10 +60,19 @@ standard_transforms = [
 
 # Transforms on torch.Tensor
 
-# class TensorRandomCrop:
-#
-#     def __init__(self, size=None, delta=None):
-#         assert size is not None ^ delta is not None, "Exactly one of 'size' and 'delta' must be provided."
+class RandomCropTensor:
+
+    def __init__(self, size=None, delta=None):
+        assert (size is not None) ^ (delta is not None), "Exactly one of 'size' and 'delta' must be provided."
+        self.size = size
+        self.delta = delta
+
+    def __call__(self, x):
+        h, w = x.shape[-2:]
+        size = self.size if self.size is not None else (h - self.delta, w - self.delta)
+        offset_h = random.randint(0, h - size[0])
+        offset_w = random.randint(0, w - size[1])
+        return x[..., offset_h: offset_h + size[0], offset_w: offset_w + size[1]]
 
 
 def affine(mat: torch.Tensor):
@@ -106,28 +114,20 @@ class RandomAffineTfm:
     """Randomly apply an affine transform on a tensor."""
 
     def __init__(self, tfm, interval=None, values=None):
-        assert interval is not None ^ values is not None, "Exactly one of 'interval' or 'values' has to be provided."
+        assert (interval is not None) ^ (values is not None), "Exactly one of 'interval' or 'values' has to be provided."
         self.tfm = tfm
         self.interval = interval if isinstance(interval, (tuple, list)) else (-interval, interval) if interval is not None else None
         self.values = values
 
     def __call__(self, x):
-        value = random.uniform(*self.interval) if self.interval is not None else random.choice(self.values)
+        value = random.choice(self.values) if self.values is not None else random.uniform(*self.interval)
         return self.tfm(value)(x)
 
 
-def jitter(delta):
-    def inner(x):
-        h, w = x.shape[-2:]
-        return T.crop((h - delta, w - delta))
-
-    return inner
-
-
 VIS_TFMS = Compose([
-    T.pad(padding=6, mode='reflection'),
-    jitter(8),
-    T.zoom(scale=(0.9, 1.1)),
-    T.rotate(degrees=(-10, 10), p=0.8),
-    jitter(4)
+    Lambda(lambda img: torch.nn.functional.pad(img, pad=[6, 6, 6, 6], mode='constant', value=0.5)),
+    RandomCropTensor(delta=8),
+    RandomAffineTfm(scale, values=[1 + (i - 5) / 50. for i in range(11)]),
+    RandomAffineTfm(rotate, values=list(range(-10, 11)) + 5 * [0]),
+    RandomCropTensor(delta=4)
 ])
