@@ -45,6 +45,7 @@ class StyleTransferModule(LayeredModule):
                  content_layer_keys=None,
                  style_target=None,
                  style_layer_keys=None,
+                 style_transform=gram_matrix,
                  loss_func=F.mse_loss):
         super(StyleTransferModule, self).__init__(arch.layers.items(), arch.arch_name, arch.flat_keys)
         self.content_target = content_target
@@ -54,7 +55,7 @@ class StyleTransferModule(LayeredModule):
             content_loss = partial(FeatureLoss, transform=None, loss_func=loss_func)
             self._insert_loss_layers('content_loss', content_loss, content_target, content_layer_keys)
         if style_target is not None and style_layer_keys is not None:
-            style_loss = partial(FeatureLoss, transform=gram_matrix_2, loss_func=loss_func)
+            style_loss = partial(FeatureLoss, transform=style_transform, loss_func=loss_func)
             self._insert_loss_layers('style_loss', style_loss, style_target, style_layer_keys)
 
         # remove the layers after the last loss layer, which are useless
@@ -132,6 +133,6 @@ def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=30
     objective = StyleTransferObjective(module, style_weight, content_weight, tv_weight)
     # the "parameterized" image is the image itself
     param_img = RawParam(input_img, cloned=True)
-    render = OptVis(module, objective, optim=optim.LBFGS, tfms=None)
+    render = OptVis(module, objective, optim=optim.LBFGS)
     thresh = (num_steps,) if isinstance(num_steps, int) else num_steps
     return render.vis(param_img, thresh, in_closure=True, callback=STCallback(), **kwargs)

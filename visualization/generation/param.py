@@ -60,28 +60,57 @@ def rfft2d_freqs(h: int, w: int) -> np.ndarray:
     return np.sqrt(fx * fx + fy * fy)
 
 
-def fourier_image(size: Tuple[int, int], spectrum_scale: float = 0.01, decay_power: float = 1.0, device: str = None) -> Tuple[torch.Tensor, Callable]:
-    """Image initialized in the Fourier domain"""
-    device = device or _get_default_device()
+def _assert_image_param_inputs(im_initial: torch.Tensor, size: Tuple[int, int]):
+    assert (im_initial is not None) ^ (size is not None), "Exactly one of 'im_initial' or 'size' has to be specified."
+    if im_initial is not None:
+        assert im_initial.dim() == 4 and im_initial.shape[:2] == (1, 3), "The image must be of shape (1,3,H,W)"
+        size = im_initial.shape[2:]
+        device = im_initial.device
+    else:
+        device = _get_default_device()
+    return size, device
+
+
+def fourier_image(im_initial: torch.Tensor = None, size: Tuple[int, int] = None, spectrum_scale: float = 0.01, decay_power: float = 1.0) \
+        -> Tuple[torch.Tensor, Callable]:
+    """
+    Image initialized in the Fourier domain
+    """
+    size, device = _assert_image_param_inputs(im_initial, size)
+
+    # this is needed to compute only once
     freqs = rfft2d_freqs(*size)
-    spectrum = (spectrum_scale * torch.randn((3, *freqs.shape, 2))).to(device)  # dimensions: (C,W,H,Re/Im)
+    scale = 1.0 / np.maximum(freqs, 1.0 / max(*size)) ** decay_power
+    scale *= np.sqrt(size[0] * size[1])
+    scale = torch.tensor(scale, dtype=torch.float32, device=device)
+
+    def _get_spectrum(_im):
+        scaled_spectrum_t = torch.rfft(_im.squeeze(0), signal_ndim=2, onesided=False)
+        return scaled_spectrum_t / scale[None, ..., None]
 
     def _get_image(_spectrum):
-        # Normalize the input
-        scale = 1.0 / np.maximum(freqs, 1.0 / max(*size)) ** decay_power
-        scale *= np.sqrt(size[0] * size[1])
-        scaled_spectrum_t = torch.tensor(scale, dtype=torch.float32, device=device)[None, ..., None] * _spectrum
+        scaled_spectrum_t = scale[None, ..., None] * _spectrum
+        return torch.irfft(scaled_spectrum_t, signal_ndim=2, onesided=False, signal_sizes=size).unsqueeze(0)
 
-        output = torch.irfft(scaled_spectrum_t, signal_ndim=2, onesided=False).unsqueeze(0)
-        return output
+    if im_initial is not None:
+        spectrum = _get_spectrum(im_initial.clone().detach())
+    else:
+        spectrum = (spectrum_scale * torch.randn((3, *freqs.shape, 2))).to(device)  # dimensions: (C,W,H,Re/Im)
 
     return spectrum, _get_image
 
 
-def random_image(size: Tuple[int, int], sd: float = 0.5, device: str = None) -> Tuple[torch.Tensor, Callable]:
-    """Create a random 'image' from a normal distribution"""
-    device = device or _get_default_device()
-    im = torch.randn(1, 3, *size, device=device) * sd
+def random_image(im_initial: torch.Tensor = None, size: Tuple[int, int] = None, sd: float = 0.5) -> Tuple[torch.Tensor, Callable]:
+    """
+    Create a random 'image' from a normal distribution
+    """
+    size, device = _assert_image_param_inputs(im_initial, size)
+
+    if im_initial is not None:
+        im = im_initial.clone().detach()
+    else:
+        im = torch.randn(1, 3, *size, device=device) * sd
+
     return im, lambda x: x
 
 
@@ -96,15 +125,17 @@ class ImageParam(Module):
     kwargs: passed on to the image function fourier_image or random_im.
     """
 
-    def __init__(self, size: Union[int, Tuple[int, int]], fft: bool = True, decorrelate: bool = True, sigmoid: bool = True, **kwargs):
+    def __init__(self, im_initial: torch.Tensor = None, size: Union[int, Tuple[int, int]] = None, fft: bool = True, decorrelate: bool = True,
+                 sigmoid: bool = True, **kwargs):
         super().__init__()
         self.fft = fft
         self.decorrelate = decorrelate
-        self.size = (size, size) if isinstance(size, int) else size
         self.sigmoid = sigmoid
 
         im_func = fourier_image if fft else random_image
-        self.param, self.get_image = im_func(size, **kwargs)
+        size = (size, size) if isinstance(size, int) else size
+
+        self.param, self.get_image = im_func(im_initial, size, **kwargs)
         self.param = Parameter(self.param)
 
     def forward(self):
