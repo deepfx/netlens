@@ -1,9 +1,8 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
-from flashtorch.utils import ImageNetIndex
 from torchvision import models
 
-from visualization.data import get_example_data
+from visualization.data import get_example_data, IMAGENET_LABELS
 from visualization.image_proc import *
 from visualization.occlusion import *
 
@@ -33,11 +32,8 @@ def show_occlussion_example():
 
     det_classes, det_counts = torch.unique(cm, return_counts=True)
 
-    ini = ImageNetIndex()
-    in_labels = {v: k for k, v in ini.items()}
-
     print('DETECTED CLASSES')
-    print('\n'.join(f'{int(cl)}\t{cnt}\t{in_labels[cl]}' for cl, cnt in zip(det_classes.tolist(), det_counts.tolist())))
+    print('\n'.join(f'{int(cl)}\t{cnt}\t{IMAGENET_LABELS[cl]}' for cl, cnt in zip(det_classes.tolist(), det_counts.tolist())))
 
 
 if __name__ == '__main__':

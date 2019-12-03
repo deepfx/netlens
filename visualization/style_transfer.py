@@ -9,7 +9,7 @@ from .generation.objective import Objective
 from .generation.param import RawParam
 from .generation.render import OptVis, OptVisCallback
 from .math import gram_matrix, gram_matrix_2
-from .modules import LayeredModule
+from .modules import FlatModel
 from .utils import key_to_tuple, tuple_to_key
 
 
@@ -36,11 +36,11 @@ def total_variation_loss(input):
     return torch.sum(torch.abs(x_diff)) + torch.sum(torch.abs(y_diff))
 
 
-class StyleTransferModule(LayeredModule):
+class StyleTransferModule(FlatModel):
     content_target: torch.Tensor
     style_target: torch.Tensor
 
-    def __init__(self, arch: LayeredModule,
+    def __init__(self, arch: FlatModel,
                  content_target=None,
                  content_layer_keys=None,
                  style_target=None,

@@ -19,8 +19,8 @@ alex_layer_keys = ['features-conv-0', 'features-relu-0', 'features-pool-0', 'fea
 
 
 def test_input_gradient(net_lens_alex):
-    gradient = net_lens_alex.get_input_gradient()
-    gradient_guided = net_lens_alex.get_input_gradient(guided=True)
+    gradient = net_lens_alex.input_gradient()
+    gradient_guided = net_lens_alex.input_gradient(guided=True)
 
     assert gradient.shape == gradient_guided.shape == torch.Size([1, 3, 224, 224])
 

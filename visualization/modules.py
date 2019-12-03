@@ -100,7 +100,7 @@ class Normalization(nn.Module):
 CustomHookFunc = Callable[[nn.Module, str], Callable[[Tensor], Any]]
 
 
-class LayeredModule(nn.Module):
+class FlatModel(nn.Module):
     """
     **HOOKS**
 
@@ -124,7 +124,7 @@ class LayeredModule(nn.Module):
 
     def __init__(self, layers, arch_name: str, flat_keys: bool = False, hooked_layer_keys=None, hooked_activation_keys=None,
                  hooked_param_layer_keys=None, hook_to_activations: bool = False, custom_activation_hook_factory: CustomHookFunc = None):
-        super(LayeredModule, self).__init__()
+        super(FlatModel, self).__init__()
         self.layers = nn.ModuleDict(layers)
         self.arch_name = arch_name
         self.flat_keys = flat_keys
