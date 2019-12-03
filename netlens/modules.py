@@ -147,7 +147,7 @@ class FlatModel(nn.Module):
     @classmethod
     def from_cnn(cls, cnn, prepended_layers=None, keep_names: bool = False, *args, **kwargs):
         """
-        Converts a generic CNN into our standardized LayeredModule. The layer ids are inferred automatically from the CNN's layers.
+        Converts a generic CNN into our standardized FlatModel. The layer ids are inferred automatically from the CNN's layers.
         :param cnn:
         :param prepended_layers:
         :param keep_names:
