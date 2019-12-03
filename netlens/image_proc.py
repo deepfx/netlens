@@ -2,7 +2,7 @@ import PIL.Image
 import matplotlib.cm
 import torchvision.transforms as T
 
-import visualization.transforms as T2
+import netlens.transforms as T2
 from pyimgy.optional.torch import *
 
 

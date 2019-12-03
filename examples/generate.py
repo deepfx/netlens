@@ -2,7 +2,7 @@ import PIL.Image
 import matplotlib.pyplot as plt
 from torchvision import models
 
-from visualization.generate import NetDreamer
+from netlens.generate import NetDreamer
 
 
 def generate_class_sample():

@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from torchvision import models
 
-from visualization.data import get_example_data, IMAGENET_LABELS
-from visualization.image_proc import *
-from visualization.occlusion import *
+from netlens.data import get_example_data, IMAGENET_LABELS
+from netlens.image_proc import *
+from netlens.occlusion import *
 
 
 def show_occlussion_example():

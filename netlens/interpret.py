@@ -4,10 +4,10 @@ from typing import Mapping
 from torch import Tensor
 
 from pyimgy.optional.torch_utils import *
-from visualization.image_proc import *
-from visualization.math import one_hot_tensor
-from visualization.modules import FlatModel
-from visualization.utils import get_name_from_key
+from .image_proc import *
+from .math import one_hot_tensor
+from .modules import FlatModel
+from .utils import get_name_from_key
 
 
 class NetLens:
