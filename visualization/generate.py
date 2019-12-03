@@ -7,14 +7,14 @@ from torch.optim import Adam, SGD
 
 from visualization.image_proc import preprocess_image, recreate_image
 from visualization.math import normalized_euclidean_loss, alpha_norm, total_variation_norm
-from visualization.modules import LayeredModule, MODELS_CONFIG
+from visualization.modules import FlatModel, MODELS_CONFIG
 
 
 class NetDreamer:
 
-    def __init__(self, raw_model: nn.Module, model: Optional[LayeredModule] = None):
+    def __init__(self, raw_model: nn.Module, model: Optional[FlatModel] = None):
         self.raw_model = raw_model
-        self.original_model = model if model is not None else LayeredModule.from_nested_cnn(raw_model)
+        self.original_model = model if model is not None else FlatModel.from_nested_cnn(raw_model)
         self.model_input_size = MODELS_CONFIG['input_size'].get(self.original_model.arch_name, (224, 224))
 
         self.raw_model.eval()

@@ -3,7 +3,7 @@ from torchvision import models
 
 from visualization.data import get_example_data
 from visualization.interpret import NetLens, preprocess_image
-from visualization.modules import LayeredModule
+from visualization.modules import FlatModel
 
 '''
 Setup to test models
@@ -14,7 +14,7 @@ Setup to test models
 
 @pytest.fixture
 def layered_from_alex():
-    return LayeredModule.from_nested_cnn(models.alexnet(pretrained=True))
+    return FlatModel.from_nested_cnn(models.alexnet(pretrained=True))
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def net_lens_alex(layered_from_alex):
     prep_img = preprocess_image(original_img)
     nl = NetLens(layered_from_alex, prep_img, target_class)
     # FIXME: running get_input bc model is set to None in NetLens.___init__ otherwise
-    nl.get_input_gradient()
+    nl.input_gradient()
     return nl
 
 
