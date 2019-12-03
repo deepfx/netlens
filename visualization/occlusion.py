@@ -40,19 +40,19 @@ def build_heatmap_from_probs(input_size, masks, probs):
     return img
 
 
-def generate_occlusion_heatmap(model: nn.Module, input: torch.Tensor, target_class: int, window: Tuple[int, int] = (30, 30)):
+def generate_occlusion_heatmap(model: nn.Module, input: torch.Tensor, target_class: int, window: Tuple[int, int] = (30, 30), verbose: bool = False):
     input = convert_image(input, to_type=torch.Tensor, shape='CWH')
 
     masks = get_masks(input.shape[1:], window)
-
-    print(f'{len(masks)} masks obtained for the input of size {input.shape}. First={masks[0]}; Last={masks[-1]}')
 
     masked_imgs = torch.stack(
         [apply_mask(input, mask) for mask in masks],
         dim=0
     )
 
-    print(f'Input for the model has shape {masked_imgs.shape}')
+    if verbose:
+        print(f'{len(masks)} masks obtained for the input of size {input.shape}. First={masks[0]}; Last={masks[-1]}')
+        print(f'Input for the model has shape {masked_imgs.shape}')
 
     logits = model(masked_imgs).detach()
     output = F.softmax(logits, dim=1)

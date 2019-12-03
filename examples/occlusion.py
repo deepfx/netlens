@@ -8,23 +8,27 @@ from visualization.image_proc import *
 from visualization.occlusion import *
 
 
-def main():
+def show_occlussion_example():
     original_img, name, target_class = get_example_data(1, img_path='../images/examples/')
+    print(f'== EXAMPLE: OCCLUSION, image {name}, class {target_class} ==')
 
     prep_img = preprocess_image(original_img)
 
     m_orig = models.vgg19_bn(pretrained=True)
     m_orig.eval()
 
-    hm, cm, hm_scaled = generate_occlusion_heatmap(m_orig, prep_img, target_class)
+    hm, cm, hm_scaled = generate_occlusion_heatmap(m_orig, prep_img, target_class, verbose=True)
     prob_no_occ = torch.max(hm)
 
     _, axes = plt.subplots(1, 3, figsize=(15, 8))
 
     sns.heatmap(hm, xticklabels=False, yticklabels=False, vmax=prob_no_occ, ax=axes[0])
-    sns.heatmap(cm, xticklabels=False, yticklabels=False, ax=axes[1])
+    axes[0].set_title('Occlusion heatmap (change in class prob)')
+    sns.heatmap(cm, xticklabels=False, yticklabels=False, cmap="PiYG", ax=axes[1])
+    axes[1].set_title('Predicted class vs. occlusion window')
     axes[2].imshow(original_img)
     axes[2].imshow(hm_scaled, alpha=0.50)
+    axes[2].set_title('Original image')
     plt.show()
 
     det_classes, det_counts = torch.unique(cm, return_counts=True)
@@ -37,4 +41,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    show_occlussion_example()
