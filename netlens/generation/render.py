@@ -1,7 +1,7 @@
 from torch import nn
 
 from pyimgy.optional.torch import *
-from visualization.transforms import VIS_TFMS
+from netlens.transforms import VIS_TFMS
 from .objective import Objective
 
 

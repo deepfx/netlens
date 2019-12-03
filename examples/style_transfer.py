@@ -1,7 +1,7 @@
 from torchvision import models
 
-from visualization.modules import Normalization
-from visualization.style_transfer import *
+from netlens.modules import Normalization
+from netlens.style_transfer import *
 
 
 def show_style_modules():

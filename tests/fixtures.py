@@ -1,9 +1,9 @@
 import pytest
 from torchvision import models
 
-from visualization.data import get_example_data
-from visualization.interpret import NetLens, preprocess_image
-from visualization.modules import FlatModel
+from netlens.data import get_example_data
+from netlens.interpret import NetLens, preprocess_image
+from netlens.modules import FlatModel
 
 '''
 Setup to test models

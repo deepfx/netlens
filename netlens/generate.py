@@ -5,9 +5,9 @@ import torch
 from torch import nn
 from torch.optim import Adam, SGD
 
-from visualization.image_proc import preprocess_image, recreate_image
-from visualization.math import normalized_euclidean_loss, alpha_norm, total_variation_norm
-from visualization.modules import FlatModel, MODELS_CONFIG
+from netlens.image_proc import preprocess_image, recreate_image
+from netlens.math import normalized_euclidean_loss, alpha_norm, total_variation_norm
+from netlens.modules import FlatModel, MODELS_CONFIG
 
 
 class NetDreamer:
