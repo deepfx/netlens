@@ -12,7 +12,27 @@ def gram_matrix(input: torch.Tensor) -> torch.Tensor:
 
     # we 'normalize' the values of the gram matrix
     # by dividing by the number of element in each feature maps.
-    return G.div(a * b * c * d)
+    return G.div_(a * b * c * d)
+
+
+def gram_matrix_2(array, normalize_magnitude=True):
+    channels = array.shape[1]
+    array_flat = array.permute((0, 2, 3, 1)).view((-1, channels))
+    gm = torch.mm(array_flat, array_flat.t())
+    if normalize_magnitude:
+        length = array_flat.shape[0]
+        gm.div_(length)
+    return gm
+
+
+def gram_matrix_2(array, normalize_magnitude=True):
+    channels = array.shape[1]
+    array_flat = array.permute((0, 2, 3, 1)).view((-1, channels))
+    gm = torch.mm(array_flat, array_flat.t())
+    if normalize_magnitude:
+        length = array_flat.shape[0]
+        gm.div_(length)
+    return gm
 
 
 def one_hot_tensor(num_classes: int, target_class: int, device=None):
