@@ -163,7 +163,7 @@ class NetLens:
 
         return cam
 
-    def generate_guided_gradcam(self, *args, show: bool = True, **kwargs) -> Tensor:
+    def guided_grad_cam(self, *args, show: bool = True, **kwargs) -> Tensor:
         """
         Guided grad cam is just the point-wise multiplication of cam mask and guided backprop mask
         """
