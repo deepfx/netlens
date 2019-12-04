@@ -1,83 +1,165 @@
-# vision-playground
+[^gbp]: setting all negative gradients to 0 when back-propagating
+[^opt]: generating an input that activates your chosen network params. This is more causal than more looking for what activates some neurons
 
-##Milestones for Version 1.5
-The repo is already better than all we have seen so far (except Lucid). I put here some ideas to really make it a home run ::
-**Convenience, Convention and Smart Defaults beat Configuration**
-```python
-#Example:
-#Infer intent>
- LayeredModule.from_nested_cnn(models.alexnet(pretrained=True))
----becomes --> 
-LayeredModule(models.alexnet(pretrained=True))
-#if we can't infer the model --> smart error message
+# Netlens v. 1.4.1
+`a colab of @bdurupt @cesarfm @cocokiri`
+A tool to interpret *neural networks,* featuring all your favorites:
 
-#The User doesn't care about our Types behind the scences
-#eg:
-Netlens(somepytorchmodel, image) #should work anyways, but LOG that we converted the type implicitely
-
-#Getting the User to AHA! Moment without friction:
-Netlens(model, image).gist()
-#:similar to seaborn PAIRGRID - very good
-#plot quick overview (either all or a sample of layers)
-#guided backprop
-#occlusion
-```
-Batteries Included
-* Include starter images for StyleTransfer and Interpret playgrounds in repo
-
-Easy logging and error handling
-* Netlens(..., Log=True) should log inbetween steps from "flattening layers", to "factorizing spatial activations" to "decorrelating X"o seaborn PAIRGRID - very good
-* Map error messages * Everything that isn't NN interpretation or style transfer related should become a package or util (ala pyimgy)
-to possible remedies ("X failed, did you mean....?") 
-
-Interactive plotting
-* Add Buttons to flip through layer interpretion
-* Animation of the building up of semantic units (very cool) -- using anim lib for sequence of guided backprop images for example
-
-In Search for Util. CODE KILLING!
-* What are the unifying abstractions? (eg Objectives, Parametization, Optimizing, Hooking, Factorizing, Normalizing)
-* Everything that isn't NN interpretation or style transfer related should become a package or util (ala pyimgy)
-* I bet that a lot of code has equivalent utils somewhere in the standard lib, pytorch, numpy, itertools or wherever. It's a good exercise to search for those common utils, because people understand them. It's a common language instead of inventing our own "code (x)"
-
-Strive for a declarative config that describes the task. Think API
-* In the end  someone should be able to run `guided.py -model:/path/to/model -image /path/...` and have the output images saved in his dir
-* If you achieve config level, you are language independent. People can run this with JSONs etc. . This is then API level.
-
-Tests
-* Check /tests. Functional, composable tests that run for each model, so that extending the library is easy and safe without everything breaking
-* Tests are easy to write. Pytest
-* run `pytest --disable-pytest-warnings -v ` in root
-
-<img src="semantic_atoms.png"/>
-
-## Research
-* The Stanford Natural Language understanding course, just for fun
-* Fastai library walk through 2.0 (jeremy) -- that's the refactoring of v1. So it's stuff we haven't seen in the library. It uses new concepts we can TAKE for this!!
-
-##Terms
-**Semantic Units**: Neurons, Spatial and Channel(detectors), Groups
-
-## Testing
-run 
-`pytest`
-or `pytest --disable-pytest-warnings`
-all Tests should be in /tests folder. Imports there are `as if!` from basedirectory
-
-In pycharm change your default test runner to pytest 
-## Todos
+* guided back-propagation[^gbp]
+* optimization[^opt]
+* occlusion heatmap 
+* GradCAM
+* some of the above 
+* Christmas Bonus: A Style Transfer module that works also with non-VGG architectures!
 
 
 
-## Visualization Utils
+For more on the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
 
-https://github.com/utkuozbulak/pytorch-cnn-visualizations
-https://distill.pub/2018/building-blocks/
+## Examples
 
- 
-## Extra considerations
-* Different similarity metrics -> Gram (autocorrelation), cross-correlation, etc.
- 
-##Technical
-* Generic Retriever (config -> model specific traversal API)
-* Mapping: names <---> NN.classes
-* Read up: https://pytorch.org/docs/stable/nn.html#torch.nn.Conv2d
+### Attribution 
+
+#### Backprop
+
+[Gradient Notebook](nbs/examples/Visual-Gradient_backprop.ipynb)
+
+**Vanilla**
+
+![vanilla-backprop-pelican](images/readme/vanilla-backprop-pelican.png)
+
+**Guided**
+
+![guided-backprop-pelican](images/readme/guided-backprop-pelican.png)
+
+**Positive and Negative Saliency**
+
+![guided-backprop-positive-negative-saliency-pelican](images/readme/guided-backprop-positive-negative-saliency-pelican.png)
+
+**Integrated Gradient**
+
+![integrated-gradient-snake](images/readme/integrated-gradient-snake.png)
+
+
+
+#### GRADCAM
+
+[GradCam Notebook](nbs/examples/Visual-Grad_CAM.ipynb)
+
+**Guided GRADCAM**
+
+![guided-gradcam-relulayer4-interpolation-pelican](images/readme/guided-gradcam-relulayer4-interpolation-pelican.png)
+
+**GRADCAM for a specific features of a layer ** *(ReLU-4)*
+
+![gradcam-convlayer4-interpolation-pelican](images/readme/gradcam-convlayer4-interpolation-pelican.png)
+
+![gradcam-convlayer4-no-interpolation-pelican](images/readme/gradcam-convlayer4-no-interpolation-pelican.png)
+
+**Occlusion**
+
+*imagine something occluded*
+
+### Generate | Optimize for an Image 
+
+[Visual Generation Notebook](nbs/examples/Visual-Generation.ipynb)
+
+**DeepDreamer**
+
+![deepDreamer](images/readme/deepDreamer.png)
+
+**Inverted Image** (*NetDreamer)*
+
+![generated_image](images/readme/generated_image.png)
+
+## Install
+
+`pip install netlens`
+
+
+The standard image utils (*convert, transform, reshape*) were factored out and put into piymgy`link to pymgy`. 
+
+
+
+## API
+
+### Main blocks | classes
+
+`FlatModel`
+
+* A neural network *layer* can be sliced up in many ways:
+
+  ![Screenshot_2019-12-04 The Building Blocks of Interpretability](/home/markus/Downloads/Screenshot_2019-12-04 The Building Blocks of Interpretability.png)
+
+  you can view those as the semantic units of the layer / network.
+
+* Pytorch **does not** have a nice API to access layers, channels or store their gradients (*input, weights, bias*). `FlatModel` gives a nicer wrapper that stores the forward and backward gradients in a consistent way.
+
+`Netlens`
+
+* accesses the preprocessed FlatModel params to display interpretations
+
+`Hooks`
+
+* abstraction and convenience for `Pytorch's` hook API
+
+`NetDreamer`
+
+* filter visualizations, generating images from fixed architecture snapshots
+
+`Optim, Param and Renderers`
+
+* General pipeline for `optimizing` images based on an `objective` with a given `parameterization`. Abstraction inspired by tensorflow's Lucid.
+
+* used as specific case in `StyleTransfer`:
+
+* ```python
+  def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=300, style_weight=1, content_weight=1, tv_weight=0, **kwargs):
+      # create objective from the module and the weights
+      objective = StyleTransferObjective(module, style_weight, content_weight, tv_weight)
+      # the "parameterized" image is the image itself
+      param_img = RawParam(input_img, cloned=True)
+      render = OptVis(module, objective, optim=optim.LBFGS)
+      thresh = (num_steps,) if isinstance(num_steps, int) else num_steps
+      return render.vis(param_img, thresh, in_closure=True, callback=STCallback(), **kwargs)
+  ```
+
+`StyleTransfer` , **an Artist's Playground**
+
+* streamlined way to run StyleTransfer  experiments, which is a specific case of image optimization
+* many variables to configure (*loss functions, weighting, style and content layers that compute loss, etc.*)
+
+`Adapter`, because there aren't pure functional standards for Deep Learning yet
+
+* We tried to make Netlens work with multiple architectures (*not just VGG or AlexNet*). 
+
+  Still, depending on how the architectures are implemented in the libraries, some techniques work only partially. For example, the hacky, non-functional, imperative implementation of ResNet or DenseNet in Tensorflow and also Pytorch make it hard to do attribution or guided backprop (*ReLu layers get mutated, Nested Blocks aren't pure functions, arbitrary flattening inside forward pass, etc...*).
+
+  `adapter.py` has nursery bindings to ingest these special need cases into something the`FlatModel` class can work well with.
+
+
+
+### The Code
+
+Composable, elegant code is still seen as `un-pythonic`. Python is easy and productive for small, solo, interactive things and therefore the environment doesn't force users to become better programmers.  
+
+Since it's hard to understand one-off unmaintainable, imperative, throw-away code, which unfortunately is the norm (*even in major deep learning frameworks)*, we put extra effort in making the **code clean, concise and with plenty of comments.**
+
+Don't like it? PRs welcome. 
+
+> Be the change you want to see in the world - Mahatma Gandhi
+
+## Tests
+You like everything breaking when you refactor or try out new things?
+Exactly, so we added some tests as sanity checks. This makes it easier to tinker with the code base.
+
+Run `pytest`or `pytest --disable-pytest-warnings` in the console.
+All Tests should be in /tests folder. Imports there are `as if!` from basedirectory. Test files start with `test_...`
+
+If you use `Pycharm`change your default test runner to pytest. 
+
+## Prior Art
+
+* Flashtorch 
+* Distill pub for inspiration
+* Lucid
