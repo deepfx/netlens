@@ -2,6 +2,8 @@
 [^opt]: generating an input that activates your chosen network params. This is more causal than more looking for what activates some neurons
 
 # Netlens v. 1.4.1
+
+
 `a colab of @bdurupt @cesarfm @cocokiri`
 A tool to interpret *neural networks,* featuring all your favorites:
 
@@ -11,6 +13,10 @@ A tool to interpret *neural networks,* featuring all your favorites:
 * GradCAM
 * some of the above 
 * Christmas Bonus: A Style Transfer module that works also with non-VGG architectures!
+
+
+
+## ToC
 
 
 
@@ -97,7 +103,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 `Netlens`
 
-* accesses the preprocessed FlatModel params to display interpretations
+* accesses the preprocessed `FlatModel` params to display interpretations
 
 `Hooks`
 
@@ -126,8 +132,8 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 `StyleTransfer` , **an Artist's Playground**
 
-* streamlined way to run StyleTransfer  experiments, which is a specific case of image optimization
-* many variables to configure (*loss functions, weighting, style and content layers that compute loss, etc.*)
+* streamlined way to run StyleTransfer experiments, which is a specific case of image optimization
+* many **variables to configure** (*loss functions, weighting, style and content layers that compute loss, etc.*)
 
 `Adapter`, because there aren't pure functional standards for Deep Learning yet
 
@@ -136,8 +142,6 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
   Still, depending on how the architectures are implemented in the libraries, some techniques work only partially. For example, the hacky, non-functional, imperative implementation of ResNet or DenseNet in Tensorflow and also Pytorch make it hard to do attribution or guided backprop (*ReLu layers get mutated, Nested Blocks aren't pure functions, arbitrary flattening inside forward pass, etc...*).
 
   `adapter.py` has nursery bindings to ingest these special need cases into something the`FlatModel` class can work well with.
-
-
 
 ### The Code
 
