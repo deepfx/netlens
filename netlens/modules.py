@@ -9,7 +9,7 @@ from pydash import find_index
 from torch import nn, Tensor
 
 from .adapters import convert_to_layers
-from .hooks import HookDict, TensorHook
+from .hooks import HookDict, TensorHook, ModuleHook
 from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
     insert_layer_at_key, delete_all_layers_from_key, update_set
 
@@ -36,6 +36,7 @@ MODELS_CONFIG = {
         'AlexNet': (224, 224)
     }
 }
+
 
 def get_module_name(module: nn.Module) -> str:
     clazz = module.__class__
@@ -79,6 +80,23 @@ def get_nested_layers(model: nn.Module, dont_flatten: Collection[type] = None) -
                                  for name, layer in model.named_modules()
                                  if (name not in parents or type(layer) in dont_flatten)
                                  and not any(name.startswith(p + '.') for p in dont_flatten_names))
+
+
+def freeze(model: nn.Module):
+    def _inner(m):
+        if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
+            return
+        if hasattr(m, 'weight') and m.weight is not None:
+            m.weight.requires_grad_(False)
+        if hasattr(m, 'bias') and m.bias is not None:
+            m.bias.requires_grad_(False)
+
+    model.apply(_inner)
+
+
+def unfreeze(model: nn.Module):
+    for p in model.parameters():
+        p.requires_grad_(True)
 
 
 class Normalization(nn.Module):
@@ -231,7 +249,7 @@ class FlatModel(nn.Module):
         return [layer for key, layer in self.layers.items() if get_name_from_key(key) == name]
 
     def get_module(self, layer_key: str) -> nn.Module:
-        return self.layers[layer_key]
+        return self.layers._modules.get(layer_key)
 
     def prepend(self, new_key: str, new_layer: nn.Module):
         self.layers = nn.ModuleDict([(new_key, new_layer)] + list(self.layers.items()))
@@ -246,3 +264,14 @@ class FlatModel(nn.Module):
     def delete_all_from_key(self, last_key: str, inclusive: bool = False):
         layer_list = list(self.layers.items())
         self.layers = nn.ModuleDict(delete_all_layers_from_key(layer_list, last_key, inclusive))
+
+    def summary(self, widths=(5, 25)):
+        line_format = f'{{:>{widths[0]}}} | {{:<{widths[1]}}} | {{}}'
+        print(line_format.format('IDX', 'KEY', 'LAYER'))
+        print('-' * 80)
+        for idx, (key, layer) in enumerate(self.layers.items()):
+            print(line_format.format(idx, key, repr(layer)))
+
+
+FlatModel.freeze = freeze
+FlatModel.unfreeze = unfreeze

@@ -1,8 +1,9 @@
 from torch import nn
 
-from pyimgy.optional.torch import *
+from netlens.modules import FlatModel
 from netlens.transforms import VIS_TFMS
-from .objective import Objective
+from pyimgy.optional.torch import *
+from .objective import Objective, LayerObjective
 
 
 class OptVisCallback:
@@ -72,6 +73,8 @@ class OptVis:
             except ImportError:
                 raise ValueError("Can't use 'show' if not in IPython notebook.")
 
+        self.model.freeze()
+
         self.optim = self.optim_fn(img_param.parameters(), **self.optim_params)
         self.run = 0
 
@@ -124,3 +127,8 @@ class OptVis:
             callback.on_render_end(self, img)
 
         return img
+
+    @classmethod
+    def from_activations(cls, model: FlatModel, layer: str, channel: int = None, neuron: int = None, shortcut: bool = False, *args, **kwargs):
+        layer_obj = LayerObjective(model, layer, channel, neuron, shortcut)
+        return cls(model, layer_obj, *args, **kwargs)
