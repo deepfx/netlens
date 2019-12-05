@@ -267,7 +267,7 @@ class FlatModel(nn.Module):
 
     def summary(self, widths=(5, 25)):
         line_format = f'{{:>{widths[0]}}} | {{:<{widths[1]}}} | {{}}'
-        print(line_format.format('IDX', 'KEY', 'LAYER'))
+        print(line_format.format('#', 'LAYER', 'MODULE'))
         print('-' * 80)
         for idx, (key, layer) in enumerate(self.layers.items()):
             print(line_format.format(idx, key, repr(layer)))

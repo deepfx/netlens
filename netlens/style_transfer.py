@@ -5,12 +5,12 @@ import torch.nn.functional as F
 from pydash import find_last
 from torch import nn, optim
 
-from .generation.objective import Objective
-from .generation.param import RawParam
-from .generation.render import OptVis, OptVisCallback
-from .math import gram_matrix, gram_matrix_2
+from .math import gram_matrix
 from .modules import FlatModel
 from .utils import key_to_tuple, tuple_to_key
+from .visualization.objective import Objective
+from .visualization.param import RawParam
+from .visualization.render import OptVis, OptVisCallback
 
 
 class FeatureLoss(nn.Module):

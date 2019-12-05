@@ -78,6 +78,9 @@ class OptVis:
         self.optim = self.optim_fn(img_param.parameters(), **self.optim_params)
         self.run = 0
 
+        # retrieve the denormalize function of the parameterized image, if any
+        denormalize = getattr(img_param, 'denormalize', lambda x: x)
+
         if callback:
             callback.on_render_begin(self, img_param)
 
@@ -106,7 +109,7 @@ class OptVis:
                 if verbose and self.is_step_to_show():
                     print(f'Run [{self.run}], loss={_loss.item():.4f}')
                 if show and self.run in thresh:
-                    display(convert_to_standard_pil(img))
+                    display(convert_to_standard_pil(denormalize(img)))
 
                 return _loss
 
@@ -126,7 +129,7 @@ class OptVis:
         if callback:
             callback.on_render_end(self, img)
 
-        return img
+        return denormalize(img)
 
     @classmethod
     def from_activations(cls, model: FlatModel, layer: str, channel: int = None, neuron: int = None, shortcut: bool = False, *args, **kwargs):
