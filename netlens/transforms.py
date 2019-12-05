@@ -5,12 +5,23 @@ from typing import Tuple
 import torch
 from PIL import Image
 from torch.nn.functional import affine_grid, grid_sample
-from torchvision.transforms import RandomCrop, Compose, Lambda
+from torchvision.transforms import RandomCrop, Compose, Lambda, functional as F
 
 __all__ = ['Thumbnail', 'Jitter', 'VIS_TFMS']
 
 
 # Transforms PIL.Image
+
+class Zoom(object):
+
+    def __init__(self, zoom: float, interpolation=Image.BILINEAR):
+        self.zoom = zoom
+        self.interpolation = interpolation
+
+    def __call__(self, img):
+        size = tuple(int(d * self.zoom) for d in img.size)
+        return F.resize(img, size, self.interpolation)
+
 
 class Thumbnail(object):
 

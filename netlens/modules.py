@@ -9,7 +9,7 @@ from pydash import find_index
 from torch import nn, Tensor
 
 from .adapters import convert_to_layers
-from .hooks import HookDict, TensorHook, ModuleHook
+from .hooks import HookDict, TensorHook
 from .utils import clean_layer, get_name_from_key, get_parent_name, as_list, enumerate_module_keys, \
     insert_layer_at_key, delete_all_layers_from_key, update_set
 
@@ -265,12 +265,18 @@ class FlatModel(nn.Module):
         layer_list = list(self.layers.items())
         self.layers = nn.ModuleDict(delete_all_layers_from_key(layer_list, last_key, inclusive))
 
-    def summary(self, widths=(5, 25)):
-        line_format = f'{{:>{widths[0]}}} | {{:<{widths[1]}}} | {{}}'
+    def summary(self):
+        max_key_len = max(len(key) for key in self.layers.keys())
+        line_format = f'{{:>5}} | {{:<{max_key_len + 2}}} | {{}}'
         print(line_format.format('#', 'LAYER', 'MODULE'))
         print('-' * 80)
         for idx, (key, layer) in enumerate(self.layers.items()):
-            print(line_format.format(idx, key, repr(layer)))
+            if len(layer._modules) > 0:
+                description = layer.__class__.__name__ + ': [' + \
+                              ', '.join(f'({ck}): {child.__class__.__name__}' for ck, child in layer._modules.items())
+            else:
+                description = repr(layer).replace('\n', ' ')
+            print(line_format.format(idx, key, description))
 
 
 FlatModel.freeze = freeze
