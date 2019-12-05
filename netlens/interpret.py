@@ -3,6 +3,7 @@ from typing import Mapping
 
 from torch import Tensor
 
+import matplotlib.pyplot as plt
 from pyimgy.optional.torch_utils import *
 from .image_proc import *
 from .math import one_hot_tensor
@@ -131,7 +132,7 @@ class NetLens:
 
         return integrated_grads
 
-    def grad_cam(self, target_layer: str, interpolate: bool = True, show: bool = True) -> Tensor:
+    def grad_cam(self, target_layer: str, interpolate: bool = True, show: bool = True, figsize=(15,10)) -> Tensor:
         self._prepare_model()
         self.model.set_hooked_layers(target_layer)
         self.model.set_hooked_activations(target_layer)
@@ -159,7 +160,8 @@ class NetLens:
         if show:
             original_image = self.original_image(to_pil=True)
             heatmap, heatmap_on_image = apply_colormap_on_image(original_image, convert_image(cam, to_type=np.ndarray), 'hsv')
-            show_images([heatmap, heatmap_on_image, cam], [f'CAM Heatmap for {target_layer}', 'CAM Heatmap on image', 'CAM Grayscale'])
+            fig = plt.figure(figsize = figsize)
+            show_images([heatmap, heatmap_on_image, cam], [f'CAM Heatmap for {target_layer}', 'CAM Heatmap on image', 'CAM Grayscale'], fig=fig)
 
         return cam
 
