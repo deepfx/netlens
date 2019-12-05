@@ -19,7 +19,7 @@ class Hook(ABC):
 
     def hook_fn_wrapper(self, *args):
         out = self.hook_func(*args)
-        self.stored = out.detach() if self.detach else out
+        self.stored = out.detach() if self.detach and isinstance(out, Tensor) else out
         return out
 
     def remove(self):

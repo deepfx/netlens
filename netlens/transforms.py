@@ -68,8 +68,8 @@ def affine(mat: torch.Tensor):
     def inner(x: torch.Tensor):
         if x.dim() == 3:
             x = x.unsqueeze(0)  # makes sure it is (N,C,W,H)
-        grid = affine_grid(mat.to(x.device), x.size())
-        return grid_sample(x, grid, padding_mode="reflection")
+        grid = affine_grid(mat.to(x.device), x.size(), align_corners=True)
+        return grid_sample(x, grid, padding_mode="reflection", align_corners=True)
 
     return inner
 
@@ -120,3 +120,5 @@ VIS_TFMS = Compose([
     RandomAffineTfm(rotate, values=list(range(-10, 11)) + 5 * [0]),
     RandomCropTensor(delta=4)
 ])
+
+VIS_TFMS_NO_CROP = Compose(VIS_TFMS.transforms[2:4])

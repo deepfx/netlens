@@ -1,8 +1,10 @@
-from typing import Tuple, Callable, Union
+from typing import Tuple, Callable, Union, Any
 
 import numpy as np
 import torch
 from torch.nn import Module, Parameter
+
+from netlens.image_proc import IMAGENET_MEAN, IMAGENET_STD
 
 
 class RawParam(Module):
@@ -28,8 +30,6 @@ color_correlation_svd_sqrt = np.asarray([[0.26, 0.09, 0.02],
                                          [0.27, -0.09, 0.03]]).astype("float32")
 
 max_norm_svd_sqrt = np.max(np.linalg.norm(color_correlation_svd_sqrt, axis=0))
-
-color_mean = [0.48, 0.46, 0.41]
 
 
 def _get_default_device():
@@ -126,11 +126,12 @@ class ImageParam(Module):
     """
 
     def __init__(self, im_initial: torch.Tensor = None, size: Union[int, Tuple[int, int]] = None, fft: bool = True, decorrelate: bool = True,
-                 sigmoid: bool = True, **kwargs):
+                 sigmoid: bool = True, norm_stats: Tuple[Any, Any] = (IMAGENET_MEAN, IMAGENET_STD), **kwargs):
         super().__init__()
         self.fft = fft
         self.decorrelate = decorrelate
         self.sigmoid = sigmoid
+        self.norm_stats = norm_stats
 
         im_func = fourier_image if fft else random_image
         size = (size, size) if isinstance(size, int) else size
@@ -140,14 +141,26 @@ class ImageParam(Module):
 
     def forward(self):
         im = self.get_image(self.param)
+
         if self.decorrelate:
             im = _linear_decorrelate_color(im)
-        if self.decorrelate and not self.sigmoid:
-            im += color_mean
-        if self.sigmoid:
-            return torch.sigmoid(im)
-        else:
-            return im.clamp(min=0.0, max=1.0)
+
+        im = torch.sigmoid(im) if self.sigmoid else im.clamp(min=0.0, max=1.0)
+        return self.normalize(im)
+
+    def normalize(self, im):
+        if self.norm_stats is None:
+            return im
+        mean = torch.as_tensor(self.norm_stats[0], dtype=im.dtype, device=im.device)
+        std = torch.as_tensor(self.norm_stats[1], dtype=im.dtype, device=im.device)
+        return im.sub(mean[:, None, None]).div(std[:, None, None])
+
+    def denormalize(self, im):
+        if self.norm_stats is None:
+            return im
+        mean = torch.as_tensor(self.norm_stats[0], dtype=im.dtype, device=im.device)
+        std = torch.as_tensor(self.norm_stats[1], dtype=im.dtype, device=im.device)
+        return im.mul(std[:, None, None]).add(mean[:, None, None]).clamp(min=0.0, max=1.0)
 
     def __repr__(self):
         return f"{self.__class__.__name__}: {self.size}px, fft={self.fft}, decorrelate={self.decorrelate}"
