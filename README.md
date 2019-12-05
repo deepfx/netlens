@@ -81,7 +81,7 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 `pip install netlens`
 
 
-The standard image utils (*convert, transform, reshape*) were factored out and put into piymgy`link to pymgy`. 
+The standard image utils (*convert, transform, reshape*) were factored out and put into [pyimgy](https://github.com/cesarfm/pyimgy)
 
 
 
@@ -99,17 +99,25 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 * Pytorch **does not** have a nice API to access layers, channels or store their gradients (*input, weights, bias*). `FlatModel` gives a nicer wrapper that stores the forward and backward gradients in a consistent way.
 
+
+
 `Netlens`
 
 * accesses the preprocessed `FlatModel` params to display interpretations
+
+
 
 `Hooks`
 
 * abstraction and convenience for `Pytorch's` hook API
 
+
+
 `NetDreamer`
 
 * filter visualizations, generating images from fixed architecture snapshots
+
+
 
 `Optim, Param and Renderers`
 
@@ -128,10 +136,14 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
       return render.vis(param_img, thresh, in_closure=True, callback=STCallback(), **kwargs)
   ```
 
+
+
 `StyleTransfer` , **an Artist's Playground**
 
 * streamlined way to run StyleTransfer experiments, which is a specific case of image optimization
 * many **variables to configure** (*loss functions, weighting, style and content layers that compute loss, etc.*)
+
+
 
 `Adapter`, because there aren't pure functional standards for Deep Learning yet
 
@@ -140,6 +152,8 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
   Still, depending on how the architectures are implemented in the libraries, some techniques work only partially. For example, the hacky, non-functional, imperative implementation of ResNet or DenseNet in Tensorflow and also Pytorch make it hard to do attribution or guided backprop (*ReLu layers get mutated, Nested Blocks aren't pure functions, arbitrary flattening inside forward pass, etc...*).
 
   `adapter.py` has nursery bindings to ingest these special need cases into something the`FlatModel` class can work well with.
+
+
 
 ### The Code
 
@@ -151,12 +165,14 @@ Don't like it? PRs welcome.
 
 > Be the change you want to see in the world - Mahatma Gandhi
 
+
+
 ## Tests
 You like everything breaking when you refactor or try out new things?
 Exactly, so we added some tests as sanity checks. This makes it easier to tinker with the code base.
 
 Run `pytest`or `pytest --disable-pytest-warnings` in the console.
-All Tests should be in /tests folder. Imports there are `as if!` from basedirectory. Test files start with `test_...`
+All Tests should be in /tests folder. Imports there are `as if!` from *basedirectory*. Test files start with `test_...`
 
 If you use `Pycharm`change your default test runner to pytest. 
 
