@@ -1,32 +1,30 @@
-[^gbp]: setting all negative gradients to 0 when back-propagating
-[^opt]: generating an input that activates your chosen network params. This is more causal than more looking for what activates some neurons
-
 # Netlens v. 1.4.1
 
+*a colab of [Cesar Fuentes](https://github.com/cesarfm) and [Benjamin Durupt](https://github.com/BenjiDur)*
 
-`a colab of @bdurupt @cesarfm @cocokiri`
 A tool to interpret *neural networks,* featuring all your favorites:
 
-* guided back-propagation[^gbp]
-* optimization[^opt]
+* guided gradients
+* image optimizers
 * occlusion heatmap 
 * GradCAM
-* some of the above 
-* Christmas Bonus: A Style Transfer module that works also with non-VGG architectures!
+* A **Style Transfer** module that works also with non-VGG architectures!
 
 
 
-## ToC
+## Overview
+
+[toc]
 
 
 
-For more on the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
+For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
 
 ## Examples
 
 ### Attribution 
 
-#### Backprop
+#### Gradients
 
 [Gradient Notebook](nbs/examples/Visual-Gradient_backprop.ipynb)
 
@@ -66,7 +64,7 @@ For more on the **pro and cons** of these techniques: [Feature Visualization](ht
 
 *imagine something occluded*
 
-### Generate | Optimize for an Image 
+### Image Optimization 
 
 [Visual Generation Notebook](nbs/examples/Visual-Generation.ipynb)
 
@@ -89,7 +87,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 ## API
 
-### Main blocks | classes
+### Building Blocks
 
 `FlatModel`
 
@@ -115,11 +113,11 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 `Optim, Param and Renderers`
 
-* General pipeline for `optimizing` images based on an `objective` with a given `parameterization`. Abstraction inspired by tensorflow's Lucid.
+* General pipeline for `optimizing` images based on an `objective` with a given `parameterization`. 
 
 * used as specific case in `StyleTransfer`:
 
-* ```python
+  ```python
   def generate_style_transfer(module: StyleTransferModule, input_img, num_steps=300, style_weight=1, content_weight=1, tv_weight=0, **kwargs):
       # create objective from the module and the weights
       objective = StyleTransferObjective(module, style_weight, content_weight, tv_weight)
@@ -164,6 +162,10 @@ If you use `Pycharm`change your default test runner to pytest.
 
 ## Prior Art
 
-* Flashtorch 
-* Distill pub for inspiration
-* Lucid
+ [cnn-visualizations](https://github.com/utkuozbulak/pytorch-cnn-visualizations) and [flashtorch](https://github.com/MisaOgura/flashtorch/) were interesting to look at.
+
+The codebase  is largely written from scratch, since we wanted all the techniques to work with many models (*most projects could only work with VGG and/or AlexNet*).  
+
+The `optim, param, renderer` abstraction is inspired by [lucid](https://github.com/tensorflow/lucid)
+
+Research: [distill](www.distill.pub)
