@@ -15,9 +15,9 @@ def get_example_data(example_index: int, img_path) -> Tuple[PILImage, str, int]:
     """
     # Pick one of the examples
     example_list = (('pelican.jpg', 144),
-                    ('guitare.jpg', 402),
+                    ('guitar.jpg', 402),
                     ('panda.jpg', 388), 
-                    ('pineapple.jpg',953))
+                    ('pineapple.jpg', 953))
     img_name = example_list[example_index][0]
     target_class = example_list[example_index][1]
     # Read image
