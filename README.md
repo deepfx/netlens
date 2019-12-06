@@ -1,16 +1,8 @@
 # Netlens v. 1.4.1
 
-*a colab of [Cesar Fuentes](https://github.com/cesarfm) and [Benjamin Durupt](https://github.com/BenjiDur)*
+*a colab with [Cesar Fuentes](https://github.com/cesarfm) and [Benjamin Durupt](https://github.com/BenjiDur)*
 
-A tool to interpret *neural networks,* featuring all your favorites:
-
-* guided gradients
-* image optimizers
-* occlusion heatmap 
-* GradCAM
-* A **Style Transfer** module that works also with non-VGG architectures!
-
-
+A tool to interpret *neural networks,* featuring all your favorites.
 
 ## Overview
 
@@ -20,7 +12,9 @@ A tool to interpret *neural networks,* featuring all your favorites:
 
 For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
 
-## Examples
+
+
+## Interpretation Techniques
 
 ### Attribution 
 
@@ -98,7 +92,9 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 
 #### Occlusion
 
+You only know how much you *love -> need* something, once it's *gone -> occluded*.
 
+![occlusion](/home/markus/Code/netlens/images/readme/occlusion.png)
 
 *imagine something occluded*
 
@@ -144,7 +140,7 @@ Visualize what a detector (channel) is *looking* for.
 
 ### Apply: Style Transfer 
 
-
+​	
 
 ## Install
 
