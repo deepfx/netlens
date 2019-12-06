@@ -99,16 +99,16 @@ class NetDreamer:
 
         return recreate_image(processed_image), processed_image
 
-    def generate_inverted_image(self, input_image, output_size: int, target_layer: str, num_iters: int = 200):
+    def generate_inverted_image(self, input_image, target_layer: str, num_iters: int = 200):
         self._prepare_model()
 
+        prep_img = preprocess_image(input_image)
         # Generate a random image which we will optimize
-        opt_img = (1e-1 * torch.randn(1, 3, output_size, output_size)).requires_grad_()
+        opt_img = (1e-1 * torch.randn_like(prep_img)).requires_grad_()
         # Define optimizer for previously created image
         optimizer = SGD([opt_img], lr=1e4, momentum=0.9)
         # Get the output from the model after a forward pass until target_layer
         # with the input image (real image, NOT the randomly generated one)
-        prep_img = preprocess_image(input_image)
         input_image_layer_output = self.model.forward(prep_img, until_layer=target_layer).detach()
 
         # Alpha regularization parameters

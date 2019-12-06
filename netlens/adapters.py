@@ -7,7 +7,7 @@ from fastai.layers import Lambda
 from .utils import find_index
 
 
-# Code for transforming special architectures to our layered model
+# Code for transforming special architectures to our FlatModel
 
 def googlenet_to_layers(model: torchvision.models.GoogLeNet):
     if model.aux_logits:

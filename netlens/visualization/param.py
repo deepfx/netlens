@@ -93,7 +93,7 @@ def fourier_image(im_initial: torch.Tensor = None, size: Tuple[int, int] = None,
         return torch.irfft(scaled_spectrum_t, signal_ndim=2, onesided=False, signal_sizes=size).unsqueeze(0)
 
     if im_initial is not None:
-        spectrum = _get_spectrum(im_initial.clone().detach())
+        spectrum = _get_spectrum(im_initial.clone().detach()).detach()
     else:
         spectrum = (spectrum_scale * torch.randn((3, *freqs.shape, 2))).to(device)  # dimensions: (C,W,H,Re/Im)
 
