@@ -26,19 +26,23 @@ class OptVis:
     A class that encapsulates the generation of an image from a given parameterized input, objective function and optimizer.
     """
 
-    def __init__(self, model: nn.Module, objective: Objective, tfms=VIS_TFMS, optim=torch.optim.Adam, optim_params=None, show_step: int = 50):
+    def __init__(self, model: nn.Module, objective: Objective, tfms=VIS_TFMS, optim=torch.optim.Adam, optim_params=None, in_closure: bool = False,
+                 show_step: int = 50):
         """
         :param model:
         :param objective:
         :param tfms:
         :param optim:
         :param optim_params: a dictionary with the parameters to pass to the optimizer, e.g. learning rate, weight decay
+        :param in_closure: if true, the optimizer.step() will be passed a closure with the actual loss computation, otherwise the loss computation
+                           will be done outside. Default is false.
         """
         self.model = model
         self.objective = objective
         self.tfms = tfms
         self.optim_fn = optim
         self.optim_params = optim_params or {}
+        self.in_closure = in_closure
         self.show_step = show_step
 
         self.model.eval()
@@ -52,7 +56,7 @@ class OptVis:
         return self.run % self.show_step == 0
 
     def vis(self, img_param: nn.Module, thresh: Tuple[int, ...] = (100,), callback: OptVisCallback = None, transform: bool = True,
-            in_closure: bool = False, verbose: bool = True, show: bool = False):
+            denorm: bool = True, verbose: bool = True, show: bool = False):
         """
         Generates the image
 
@@ -60,8 +64,7 @@ class OptVis:
         :param thresh: the iterations count for which intermediate results will be shown if display=True; the max is the total number of iterations
         :param callback: an optional OptVisCallback to add custom behaviours.
         :param transform: if true, every image will be transformed by the provided chain.
-        :param in_closure: if true, the optimizer.step() will be passed a closure with the actual loss computation, otherwise the loss computation
-                           will be done outside. Default is false.
+        :param denorm:
         :param verbose: if true, some output will be printed during the iterations.
         :param show: if true, intermediate results will be shown according to the values of thresh (only in a notebook).
         :return:
@@ -79,7 +82,7 @@ class OptVis:
         self.run = 0
 
         # retrieve the denormalize function of the parameterized image, if any
-        denormalize = getattr(img_param, 'denormalize', lambda x: x)
+        denormalize = img_param.denormalize if denorm and hasattr(img_param, 'denormalize') else lambda x: x
 
         if callback:
             callback.on_render_begin(self, img_param)
@@ -113,7 +116,7 @@ class OptVis:
 
                 return _loss
 
-            if in_closure:
+            if self.in_closure:
                 self.optim.step(closure)
             else:
                 # "normal" case, without closure
