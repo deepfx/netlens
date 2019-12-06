@@ -36,7 +36,33 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 
 ![guided-backprop-pelican](images/readme/guided-backprop-pelican.png)
 
+![guided-backprop-panda](images/readme/guided-backprop-panda.png)
+
+![guided-backprop-pineapple](images/readme/guided-backprop-pineapple.png)
+
+
+
+**Smooth BackProp Guided**
+
+![smooth-backprop-unguided-pelican](images/readme/smooth-backprop-unguided-pelican.png)
+
+**Smooth BackProp Unguided**
+
+![smooth-backprop-unguided-pelican](images/readme/smooth-backprop-unguided-pelican.png)
+
+
+
+
+
+
+
 **Positive and Negative Saliency**
+
+![guided-backprop-positive-negative-saliency-pineapple](images/readme/guided-backprop-positive-negative-saliency-pineapple.png)
+
+
+
+
 
 ![guided-backprop-positive-negative-saliency-pelican](images/readme/guided-backprop-positive-negative-saliency-pelican.png)
 
@@ -59,6 +85,14 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 ![gradcam-convlayer4-interpolation-pelican](images/readme/gradcam-convlayer4-interpolation-pelican.png)
 
 ![gradcam-convlayer4-no-interpolation-pelican](images/readme/gradcam-convlayer4-no-interpolation-pelican.png)
+
+
+
+![gradcam-relulayer4-interpolation-pineapple](images/readme/gradcam-relulayer4-interpolation-pineapple.png)
+
+
+
+![gradcam-relulayer4-interpolation-guitar](images/readme/gradcam-relulayer4-interpolation-guitar.png)
 
 **Occlusion**
 
@@ -95,7 +129,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
   ![Screenshot_2019-12-04 The Building Blocks of Interpretability](/home/markus/Downloads/Screenshot_2019-12-04 The Building Blocks of Interpretability.png)
 
-  you can view those as the semantic units of the layer / network.
+  you can view those as the [semantic units](https://distill.pub/2018/building-blocks/) of the layer / network.
 
 * Pytorch **does not** have a nice API to access layers, channels or store their gradients (*input, weights, bias*). `FlatModel` gives a nicer wrapper that stores the forward and backward gradients in a consistent way.
 
@@ -103,19 +137,19 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 `Netlens`
 
-* accesses the preprocessed `FlatModel` params to display interpretations
+* accesses the preprocessed `FlatModel` params to compute and display interpretations
 
 
 
 `Hooks`
 
-* abstraction and convenience for `Pytorch's` hook API
+* abstraction and convenience for `Pytorch's` hook (*aka forward / backward pass callbacks*) API
 
 
 
 `NetDreamer`
 
-* filter visualizations, generating images from fixed architecture snapshots
+* filter visualizations, generating images from fixed architecture snapshots. tripping out
 
 
 
@@ -151,7 +185,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
   Still, depending on how the architectures are implemented in the libraries, some techniques work only partially. For example, the hacky, non-functional, imperative implementation of ResNet or DenseNet in Tensorflow and also Pytorch make it hard to do attribution or guided backprop (*ReLu layers get mutated, Nested Blocks aren't pure functions, arbitrary flattening inside forward pass, etc...*).
 
-  `adapter.py` has nursery bindings to ingest these special need cases into something the`FlatModel` class can work well with.
+  `adapter.py` has *nursery* bindings to ingest these special need cases into something the `FlatModel` class can work well with.
 
 
 
@@ -169,19 +203,21 @@ Don't like it? PRs welcome.
 
 ## Tests
 You like everything breaking when you refactor or try out new things?
-Exactly, so we added some tests as sanity checks. This makes it easier to tinker with the code base.
+Exactly. That's why we added some tests as sanity checks. This makes it easier to tinker with the code base.
 
 Run `pytest`or `pytest --disable-pytest-warnings` in the console.
-All Tests should be in /tests folder. Imports there are `as if!` from *basedirectory*. Test files start with `test_...`
+All Tests should be in /tests folder. Imports there are `as if!` from the *basedirectory*. Test files start with `test_...`
 
-If you use `Pycharm`change your default test runner to pytest. 
+If you use `Pycharm` you can change your default test runner to pytest. 
+
+
 
 ## Prior Art
 
- [cnn-visualizations](https://github.com/utkuozbulak/pytorch-cnn-visualizations) and [flashtorch](https://github.com/MisaOgura/flashtorch/) were interesting to look at.
+We came across [cnn-visualizations](https://github.com/utkuozbulak/pytorch-cnn-visualizations) and [flashtorch](https://github.com/MisaOgura/flashtorch/) before deciding to build this.
 
-The codebase  is largely written from scratch, since we wanted all the techniques to work with many models (*most projects could only work with VGG and/or AlexNet*).  
+The codebase  is largely written from scratch, since we wanted all the techniques to work with many models (*most other projects could only work with VGG and/or AlexNet*).  
 
 The `optim, param, renderer` abstraction is inspired by [lucid](https://github.com/tensorflow/lucid)
 
-Research: [distill](www.distill.pub)
+Research: [distill](www.distill.pub) mostly
