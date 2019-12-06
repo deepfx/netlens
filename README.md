@@ -94,21 +94,57 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 
 ![gradcam-relulayer4-interpolation-guitar](images/readme/gradcam-relulayer4-interpolation-guitar.png)
 
-**Occlusion**
+
+
+#### Occlusion
+
+
 
 *imagine something occluded*
 
-### Image Optimization 
+
+
+### Image Optimization
 
 [Visual Generation Notebook](nbs/examples/Visual-Generation.ipynb)
 
-**DeepDreamer**
+#### Deep Dreamer
 
-![deepDreamer](images/readme/deepDreamer.png)
+![deepDreamer](images/readme/panda_dream.png)
 
-**Inverted Image** (*NetDreamer)*
 
-![generated_image](images/readme/generated_image.png)
+
+#### Inverted Image (*NetDreamer*)
+
+Generates an Image that maximizes a layer's activations
+
+![inverse_image_layer_activations](images/readme/inverse_image_layer_activations.png)
+
+#### Class Visualization
+
+[Optvis Notebook](nbs/examples/Visual-Generation_with_OptVis.ipynb)
+
+Optimization can give us an example input that causes the desired behavior. If we fixate the "otter" class, we get an image that is optimized to most activate that class.
+
+![class_visualize](images/readme/class_visualize.png)
+
+#### Channel Visualization
+
+[OptVis notebook](nbs/examples/Visual-Generation_with_OptVis.ipynb)
+
+Visualize what a detector (channel) is *looking* for.
+
+![channel_vis2](/home/markus/Code/netlens/images/readme/channel_vis3.png)
+
+![channel_vis1](/home/markus/Code/netlens/images/readme/channel_vis1.png)
+
+![channel_vis2](/home/markus/Code/netlens/images/readme/channel_vis2.png)
+
+
+
+### Apply: Style Transfer 
+
+
 
 ## Install
 
