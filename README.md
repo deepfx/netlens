@@ -124,23 +124,39 @@ Optimization can give us an example input that causes the desired behavior. If w
 
 ![class_visualize](images/readme/class_visualize.png)
 
+
+
 #### Channel Visualization
 
 [OptVis notebook](nbs/examples/Visual-Generation_with_OptVis.ipynb)
 
 Visualize what a detector (channel) is *looking* for.
 
-![channel_vis2](/home/markus/Code/netlens/images/readme/channel_vis3.png)
-
-![channel_vis1](/home/markus/Code/netlens/images/readme/channel_vis1.png)
-
-![channel_vis2](/home/markus/Code/netlens/images/readme/channel_vis2.png)
+| Some Channel                                      | Some other Channel                                | Another Channel Still                             |
+| ------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------- |
+| ![channel_vis2](./images/readme/channel_vis2.png) | ![channel_vis2](./images/readme/channel_vis3.png) | ![channel_vis1](./images/readme/channel_vis1.png) |
 
 
 
-### Apply: Style Transfer 
+### Bonus: Style Transfer 
 
-​	
+As is artist tradition, the best motive is often your muse. Something to hold your attention during those lonely nights of parameterizing your model.
+
+| Muse \| Content                               | Style                                               |
+| --------------------------------------------- | --------------------------------------------------- |
+| ![lucia](./images/style_transfer/lucia.jpg)   | ![kandinsky](./images/style_transfer/kandinsky.jpg) |
+| ![sulafa](./images/style_transfer/sulafa.jpg) | ![hendrix](./images/style_transfer/hendrix.jpg)     |
+| ![min](./images/style_transfer/min.jpg)       | ![bellmer](./images/style_transfer/bellmer.jpg)     |
+
+Unfortunately, our Image Parameterization (after the last overhaul) is behaving strangely and we didn't have the same beautiful stylizing that would do them justice :( `TODO`
+
+Before that you could get some nice overlays:
+
+| Content (my stupid visage)                                   | Style                                           | Output                    |
+| ------------------------------------------------------------ | ----------------------------------------------- | ------------------------- |
+| ![markus_mugshot](./images/style_transfer/markus_mugshot.jpg) | ![hendrix](./images/style_transfer/hendrix.jpg) | ![m2](./images/readme/m1) |
+
+
 
 ## Install
 
