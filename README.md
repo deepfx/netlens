@@ -2,13 +2,18 @@
 
 *a colab with [Cesar Fuentes](https://github.com/cesarfm) and [Benjamin Durupt](https://github.com/BenjiDur)*
 
-A tool to interpret *neural networks,* featuring all your favorites.
+A tool to interpret *neural networks,* featuring all your favorites:
+
+
 
 ## Overview
 
-[toc]
 
 
+[Attribution](#Attribution)
+
+
+[TOC]
 
 For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
 
@@ -16,7 +21,7 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 
 ## Interpretation Techniques
 
-### Attribution 
+### Attribution
 
 #### Gradients
 
@@ -62,7 +67,7 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 
 **Integrated Gradient**
 
-![integrated-gradient-snake](images/readme/integrated-gradient-snake.png)
+![integrated-gradients-guided-pelican](images/readme/integrated-gradients-guided-pelican.png)
 
 
 
@@ -94,7 +99,7 @@ For the **pro and cons** of these techniques: [Feature Visualization](https://di
 
 You only know how much you *love -> need* something, once it's *gone -> occluded*.
 
-![occlusion](/home/markus/Code/netlens/images/readme/occlusion.png)
+![occlusion](images/readme/occlusion.png)
 
 *imagine something occluded*
 
@@ -142,17 +147,19 @@ Visualize what a detector (channel) is *looking* for.
 
 As is artist tradition, the best motive is often your muse. Something to hold your attention during those lonely nights of parameterizing your model.
 
-| Muse \| Content                               | Style                                               |
-| --------------------------------------------- | --------------------------------------------------- |
-| ![lucia](./images/style_transfer/lucia.jpg)   | ![kandinsky](./images/style_transfer/kandinsky.jpg) |
-| ![sulafa](./images/style_transfer/sulafa.jpg) | ![hendrix](./images/style_transfer/hendrix.jpg)     |
-| ![min](./images/style_transfer/min.jpg)       | ![bellmer](./images/style_transfer/bellmer.jpg)     |
+| Muse \| Content                               | Style                                               | Output                                  |
+| --------------------------------------------- | --------------------------------------------------- | --------------------------------------- |
+| ![lucia](./images/style_transfer/lucia.jpg)   | ![hendrix](./images/style_transfer/hendrix.jpg)     | ![kandinsky](images/readme/lucia_b.png) |
+| ![sulafa](./images/style_transfer/sulafa.jpg) | ![kandinsky](./images/style_transfer/kandinsky.jpg) | ![hendrix](images/readme/sul_a.png)     |
+| ![min](./images/style_transfer/min.jpg)       | ![bellmer](./images/style_transfer/bellmer.jpg)     | ![bellmer](images/readme/min_a.png)     |
 
-Unfortunately, our Image Parameterization (after the last overhaul) is behaving strangely and we didn't have the same beautiful stylizing that would do them justice :( `TODO`
+`BUG :(` since last architecture update:
+
+Unfortunately, to make `Class` and `Channel` visualization work, we overhauled how images get parameterized and optimizes. This worked for the interpretability stuff, but messed up some part of the style transfer (*possibly normalization, decorrelation...*)
 
 Before that you could get some nice overlays:
 
-| Content (my stupid visage)                                   | Style                                           | Output                    |
+| Content (my visage)                                          | Style                                           | Output                    |
 | ------------------------------------------------------------ | ----------------------------------------------- | ------------------------- |
 | ![markus_mugshot](./images/style_transfer/markus_mugshot.jpg) | ![hendrix](./images/style_transfer/hendrix.jpg) | ![m2](./images/readme/m1) |
 
@@ -163,7 +170,7 @@ Before that you could get some nice overlays:
 `pip install netlens`
 
 
-The standard image utils (*convert, transform, reshape*) were factored out and put into [pyimgy](https://github.com/cesarfm/pyimgy)
+The standard image utils (*convert, transform, reshape*) were factored out to [pyimgy](https://github.com/cesarfm/pyimgy)
 
 
 
@@ -175,7 +182,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 * A neural network *layer* can be sliced up in many ways:
 
-  ![Screenshot_2019-12-04 The Building Blocks of Interpretability](/home/markus/Downloads/Screenshot_2019-12-04 The Building Blocks of Interpretability.png)
+  ![Screenshot_2019-12-04 The Building Blocks of Interpretability](images/readme/building_blocks.png)
 
   you can view those as the [semantic units](https://distill.pub/2018/building-blocks/) of the layer / network.
 
@@ -222,7 +229,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 `StyleTransfer` , **an Artist's Playground**
 
-* streamlined way to run StyleTransfer experiments, which is a specific case of image optimization
+* streamlined way to run StyleTransfer experiments, which is a special case of image optimization
 * many **variables to configure** (*loss functions, weighting, style and content layers that compute loss, etc.*)
 
 
@@ -241,7 +248,7 @@ The standard image utils (*convert, transform, reshape*) were factored out and p
 
 Composable, elegant code is still seen as `un-pythonic`. Python is easy and productive for small, solo, interactive things and therefore the environment doesn't force users to become better programmers.  
 
-Since it's hard to understand one-off unmaintainable, imperative, throw-away code, which unfortunately is the norm (*even in major deep learning frameworks)*, we put extra effort in making the **code clean, concise and with plenty of comments.**
+Since it's hard to understand one-off unmaintainable, imperative, throw-away code, which unfortunately is the norm (*even in major deep learning frameworks)*, we put extra effort in making the **code clean, concise and with plenty of comments.** That is /netlens the main library; the examples notebooks might be different.
 
 Don't like it? PRs welcome. 
 
