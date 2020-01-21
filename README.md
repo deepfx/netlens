@@ -1,21 +1,42 @@
 # Netlens v. 1.4.1
 
-*a colab with [Cesar Fuentes](https://github.com/cesarfm) and [Benjamin Durupt](https://github.com/BenjiDur)*
+A library to interpret neural networks - emented in pytorch.
 
-A tool to interpret *neural networks,* featuring all your favorites:
-
-
+Featuring all your favorites:
 
 ## Overview
 
+a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https://github.com/BenjiDur) and [Markus Strasser](https://github.com/mjstra)
 
+* [Attribution](#Attribution)
 
-[Attribution](#Attribution)
+  * [Gradients](#Gradients)
+  * [GRADCAM](#GRADCAM)
+  * [Occlusion](#Occlusion)
 
+* [Image Optimization](#Image Optimization)
 
-[TOC]
+  * [Deep Dreamer](#Deep Dreamer)
 
-For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
+  * [Inverted Image](#Inverted Image)
+
+  * [Class Visualization](#Class Visualization)
+
+  * [Channel Visualization](#Channel Visualization)
+
+    For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
+
+    
+
+* [Bonus: Style Transfer](#Bonus: Style Transfer)
+
+* [Install](#Install)
+
+* [API](#API)
+
+* [Tests](#Tests)
+
+* [Prior Art](#Prior Art)
 
 
 
