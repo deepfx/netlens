@@ -1,12 +1,8 @@
 # Netlens v. 1.4.1
 
-A library to interpret neural networks - emented in pytorch.
+*a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https://github.com/BenjiDur) and [Markus Strasser](https://github.com/mjstra)*
 
-Featuring all your favorites:
-
-## Overview
-
-a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https://github.com/BenjiDur) and [Markus Strasser](https://github.com/mjstra)
+A library to interpret neural networks (*pytorch*). Featuring all your favorites:
 
 * [Attribution](#Attribution)
 
@@ -26,8 +22,6 @@ a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https:
 
     For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
 
-    
-
 * [Bonus: Style Transfer](#Bonus: Style Transfer)
 
 * [Install](#Install)
@@ -37,8 +31,6 @@ a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https:
 * [Tests](#Tests)
 
 * [Prior Art](#Prior Art)
-
-
 
 ## Interpretation Techniques
 
@@ -72,10 +64,6 @@ a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https:
 
 
 
-
-
-
-
 **Positive and Negative Saliency**
 
 ![guided-backprop-positive-negative-saliency-pineapple](images/readme/guided-backprop-positive-negative-saliency-pineapple.png)
@@ -85,6 +73,8 @@ a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https:
 
 
 ![guided-backprop-positive-negative-saliency-pelican](images/readme/guided-backprop-positive-negative-saliency-pelican.png)
+
+
 
 **Integrated Gradient**
 
@@ -99,6 +89,8 @@ a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https:
 **Guided GRADCAM**
 
 ![guided-gradcam-relulayer4-interpolation-pelican](images/readme/guided-gradcam-relulayer4-interpolation-pelican.png)
+
+
 
 **GRADCAM for a specific features of a layer ** *(ReLU-4)*
 
@@ -166,7 +158,7 @@ Visualize what a detector (channel) is *looking* for.
 
 ### Bonus: Style Transfer 
 
-As is artist tradition, the best motive is often your muse. Something to hold your attention during those lonely nights of parameterizing your model.
+As an artist, the best motive is often your muse. Something to hold the attention during those [lonely nights](https://www.youtube.com/watch?v=3JWGXagA1MI) of parameterizing your model.
 
 | Muse \| Content                               | Style                                               | Output                                  |
 | --------------------------------------------- | --------------------------------------------------- | --------------------------------------- |
@@ -176,15 +168,7 @@ As is artist tradition, the best motive is often your muse. Something to hold yo
 
 `BUG :(` since last architecture update:
 
-Unfortunately, to make `Class` and `Channel` visualization work, we overhauled how images get parameterized and optimizes. This worked for the interpretability stuff, but messed up some part of the style transfer (*possibly normalization, decorrelation...*)
-
-Before that you could get some nice overlays:
-
-| Content (my visage)                                          | Style                                           | Output                    |
-| ------------------------------------------------------------ | ----------------------------------------------- | ------------------------- |
-| ![markus_mugshot](./images/style_transfer/markus_mugshot.jpg) | ![hendrix](./images/style_transfer/hendrix.jpg) | ![m2](./images/readme/m1) |
-
-
+* Unfortunately, to make `Class` and `Channel` visualization work, we overhauled how images get parameterized and optimized. This worked for the interpretability stuff, but messed up some part of the style transfer (*possibly normalization, fourier ladida, decorrelation...*) -- very sad and hard to debug
 
 ## Install
 
