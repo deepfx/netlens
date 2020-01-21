@@ -14,7 +14,7 @@ A library to interpret neural networks (*pytorch*). Featuring all your favorites
 
   * [Deep Dreamer](#Deep-Dreamer)
 
-  * [Inverted Image](#Inverted-Image-(NetDreamer))
+  * [Inverted Image or NetDreamer](#Inverted-Image)
 
   * [Class Visualization](#Class-Visualization)
 
@@ -128,8 +128,8 @@ You only know how much you *love -> need* something, once it's *gone -> occluded
 
 
 
-#### Inverted Image (*NetDreamer*)
-
+#### Inverted Image
+(*NetDreamer*)
 Generates an Image that maximizes a layer's activations
 
 ![inverse_image_layer_activations](images/readme/inverse_image_layer_activations.png)
