@@ -14,7 +14,7 @@ A library to interpret neural networks (*pytorch*). Featuring all your favorites
 
   * [Deep Dreamer](#Deep-Dreamer)
 
-  * [Inverted Image](#Inverted-Image-(NetDreamer)
+  * [Inverted Image](#Inverted-Image-(NetDreamer))
 
   * [Class Visualization](#Class-Visualization)
 
