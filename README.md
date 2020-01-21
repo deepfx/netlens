@@ -14,7 +14,7 @@ A library to interpret neural networks (*pytorch*). Featuring all your favorites
 
   * [Deep Dreamer](#Deep-Dreamer)
 
-  * [Inverted Image](#Inverted-Image)
+  * [Inverted Image](#Inverted-Image-(NetDreamer)
 
   * [Class Visualization](#Class-Visualization)
 
@@ -22,7 +22,7 @@ A library to interpret neural networks (*pytorch*). Featuring all your favorites
 
     For the **pro and cons** of these techniques: [Feature Visualization](https://distill.pub/2017/feature-visualization/)
 
-* [Bonus: Style Transfer](#Bonus:StyleTransfer)
+* [Bonus: Style Transfer](#Bonus-Style-Transfer)
 
 * [Install](#Install)
 
@@ -156,7 +156,7 @@ Visualize what a detector (channel) is *looking* for.
 
 
 
-### Bonus:StyleTransfer 
+### Bonus Style Transfer 
 
 As an artist, the best motive is often your muse. Something to hold the attention during those [lonely nights](https://www.youtube.com/watch?v=3JWGXagA1MI) of parameterizing your model.
 
