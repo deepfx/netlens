@@ -10,7 +10,7 @@ A library to interpret neural networks (*pytorch*). Featuring all your favorites
   * [GRADCAM](#GRADCAM)
   * [Occlusion](#Occlusion)
 
-* [Image Optimization](#Image Optimization)
+* [Image Optimization](#Image-Optimization)
 
   * [Deep Dreamer](#Deep Dreamer)
 
