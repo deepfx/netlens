@@ -37,9 +37,20 @@ A library to interpret neural networks (*pytorch*). Featuring all your favorites
 ### Attribution
 
 #### Gradients
+Idea: We get the relative importance of input features through calculating the gradient of the output prediction with respect to those input features
 
 [Gradient Notebook](nbs/examples/Visual-Gradient_backprop.ipynb)
 
+![schema](https://mydeeplearningnb.files.wordpress.com/2019/08/0934a65fc4bb4720b653ba8c4d301ea7.png)
+\
+a) Given an input image, we perform the forward pass to the layer we are interested in, then set to zero all activations except one and propagate back to the image to get a reconstruction. 
+\
+b) Different methods of propagating back through a ReLU nonlinearity. 
+\
+c) Formal definition of different methods for propagating a output activation out back through a ReLU unit in layer l
+
+
+Below are a few implementations you can try out:
 **Vanilla**
 
 ![vanilla-backprop-pelican](images/readme/vanilla-backprop-pelican.png)
@@ -158,7 +169,9 @@ Visualize what a detector (channel) is *looking* for.
 
 ### Bonus Style Transfer 
 
-As an artist, the best motive is often your muse. Something to hold the attention during those [lonely nights](https://www.youtube.com/watch?v=3JWGXagA1MI) of parameterizing your model.
+Neural style transfer is an optimization technique that takes two images—a content image and a style reference image (often the artwork)—and blends them together so the output image looks like the content image, but “painted” in the style of the style reference image.
+
+As an artist, the best motive is often your muse.
 
 | Muse \| Content                               | Style                                               | Output                                  |
 | --------------------------------------------- | --------------------------------------------------- | --------------------------------------- |
@@ -168,7 +181,7 @@ As an artist, the best motive is often your muse. Something to hold the attentio
 
 `BUG :(` since last architecture update:
 
-* Unfortunately, to make `Class` and `Channel` visualization work, we overhauled how images get parameterized and optimized. This worked for the interpretability stuff, but messed up some part of the style transfer (*possibly normalization, fourier ladida, decorrelation...*) -- very sad and hard to debug
+* Unfortunately, to make `Class` and `Channel` visualization work, we overhauled how images get parameterized and optimized. This worked for the interpretability stuff, but messed up some part of the style transfer (*possibly normalization, fourier ladida, decorrelation...*) -- very sad and hard to debug. You can get the best results if you run style transfer notebook from earlier Netlens versions.
 
 ## Install
 
