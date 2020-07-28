@@ -1,6 +1,6 @@
 # Netlens v. 1.4.1
 
-*a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https://github.com/BenjiDur) and [Markus Strasser](https://github.com/mjstra)*
+*a colab of [Cesar Fuentes](https://github.com/cesarfm), [Benjamin Durupt](https://github.com/BenjiDur) and [Markus Strasser](https://github.com/mkstra)*
 
 A library to interpret neural networks (*pytorch*). Featuring all your favorites:
 
